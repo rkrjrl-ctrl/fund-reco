@@ -1,0 +1,242 @@
+<!doctype html>
+<html lang="ko"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>주요 펀드현황</title>
+<style>
+body{font:15px/1.5 'Malgun Gothic',sans-serif;margin:0;background:#f5f6fa;color:#222}
+main{max-width:1180px;margin:auto;padding:16px}
+nav{display:flex;gap:4px;margin-bottom:16px;flex-wrap:wrap}
+nav a{padding:10px 20px;background:#dde;color:#1f2560;border-radius:6px 6px 0 0;cursor:pointer}
+nav a.on{background:#1f2560;color:#fff}
+table{width:100%;border-collapse:collapse;background:#fff;margin-bottom:24px}
+th{background:#1f2560;color:#fff;padding:10px;white-space:nowrap}
+th.s{cursor:pointer}
+td{padding:9px 10px;border-bottom:1px solid #e3e5ee;text-align:center}
+td.l{text-align:left}
+tr.f{cursor:pointer}tr.f:hover td{background:#eef0fb}
+tr.me td{background:#fff8e1}
+.tag{color:#1f2560;font-weight:bold}
+.back{cursor:pointer;color:#1f2560}
+.tog{display:flex;gap:8px;margin:0 0 12px;flex-wrap:wrap;align-items:center}
+.tog a{cursor:pointer;color:#1f2560;padding:5px 14px;border:1px solid #1f2560;border-radius:16px;background:#fff;user-select:none}
+.tog a.on{background:#1f2560;color:#fff}
+.tog b{color:#666;font-weight:normal;font-size:13px;margin-right:2px}
+.pos{color:#c62828}.neg{color:#1565c0}
+.note{font-size:13px;color:#666}
+.wrap{overflow-x:auto}
+td.k{background:#f0f1f8;font-weight:bold;text-align:left;white-space:nowrap}
+.card{background:#fff;padding:12px;margin-bottom:20px;border:1px solid #e3e5ee}
+.cb{position:relative;cursor:grab;touch-action:none}
+.cb.drag{cursor:grabbing}
+.cb svg{width:100%;height:auto;display:block;user-select:none}
+.lg{display:grid;grid-template-columns:repeat(auto-fill,minmax(250px,1fr));gap:2px 12px;margin-top:8px;font-size:13px}
+.lg span{cursor:pointer;display:flex;align-items:center;gap:6px;padding:2px 4px;border-radius:4px;white-space:nowrap}
+.lg span:hover{background:#eef0fb}
+.lg span.off{opacity:.35}
+.lg i{width:14px;height:4px;flex:none}
+.lg b{margin-left:auto;padding-left:6px}
+#tip{position:fixed;display:none;background:rgba(255,255,255,.96);border:1px solid #999;padding:6px 10px;font-size:12px;pointer-events:none;z-index:9;box-shadow:0 2px 8px #0003;max-height:70vh;overflow:hidden}
+.bar{display:inline-block;height:9px;vertical-align:middle;margin-right:6px}
+.hold{margin:0;padding:0;list-style:none;font-size:13px}
+.hold li{display:flex;align-items:center;gap:8px;line-height:1.7}
+.hold s{display:inline-block;height:8px;background:#7b86d6;text-decoration:none}
+.hint{font-size:12px;color:#666;margin-left:auto}
+.hint a{padding:2px 10px;font-size:12px}
+</style></head><body><main>
+<nav><a data-t="home">추천 라인업</a><a data-t="tdf">빈티지별 비교</a><a data-t="co">운용사별 비교</a></nav>
+<div id="v"></div>
+<p class="note">출처: 한국투자증권 펀드 검색·상세(온라인 판매 클래스, 연금저축 C-Pe 클래스 기준, 기준일 @@ASOF@@, 그래프는 분배금 반영 수정기준가로 표의 기간수익률과 같은 기준일·산식), FunETF(미래 퇴직연금배당·인컴주는 월배당), 미래에셋자산운용·한국투자신탁운용 공식 상품 페이지(보수·보유종목). 수익률은 누적(%), 설정액은 펀드 전체 기준(억원). 그래프는 영업일 단위 기준가입니다. 과거 수익률은 미래 수익을 보장하지 않습니다. 자동 갱신: @@UPDATED@@</p>
+</main>
+<div id="tip"></div>
+<script>
+// 행: [코드,펀드명,운용사,총보수%,1M,3M,6M,1Y,3Y,위험등급,설정일,설정액(억),빈티지,상품군]
+/*@@DATA@@*/
+const R=R_TDF.concat(R_EXTRA);
+// 출처가 다른 펀드의 보충 메모와 주요 보유종목(TOP10, 종목 비중%)
+const NOTE={
+ "484210":"수익률과 그래프 모두 FunETF 종류C(오프라인-퇴직연금) 분배금 반영 기준가로 계산(기준일 @@ASOF@@). 미래에셋자산운용 공식 페이지 수치와는 산정 방식 차이로 일부 다를 수 있음(2026-09-30 확인: 1년 운용사 81.78% vs FunETF 84.17%). 보유종목은 2026-08-30 기준(자동 갱신 대상 아님). 총보수는 C-P2e 온라인 클래스 0.62%(종류C는 0.85%). 벤치마크 KOSPI200(70%)+MMI(30%). 한국투자증권 온라인 펀드몰 검색에는 없음.",
+ "K55101EI6779":"수익률과 그래프 모두 FunETF 분배금 반영 기준가로 계산(기준일 @@ASOF@@). 한국투자신탁운용 공식 페이지 수치와는 산정 방식 차이로 일부 다를 수 있음(2026-09-30 확인: 1개월 운용사 -3.03% vs FunETF -2.17%). 보유종목은 2026-09-17 기준(자동 갱신 대상 아님). 확인된 클래스는 A(선취 1.00%, 오프라인)뿐이며 2026.07.13 설정으로 3개월 이상 수익률이 없음. 연금 클래스는 확인되지 않음.",
+};
+const HOLD_STATIC={
+ "484210":["SK하이닉스 20.02","삼성전자 19.71","삼성전자우 9.50","TIGER 200 5.95","TIGER 배당커버드콜액티브 4.43","SK스퀘어 1.74","KB금융 1.30","맥쿼리인프라 0.98","삼성전기우 0.96","우리금융지주 0.91"],
+ "K55101EI6779":["Ishares Core U.S. Aggregate Bo 20.86","Northern Trust High Yield Value-Scored B 12.75","Ace 미국빅테크7+데일리타겟커버드콜(합성) 12.65","Ace 미국500데일리타겟커버드콜(합성) 10.78","Ishares Jp Morgan Em Bond Fd 9.82","Global X Us Preferred Etf 7.91","Vaneck Vectors Preferred Secur 7.87","Ishares Emerging Markets High Yield Bond 5.81","Vanguard Short-Term Tips 5.02","Ace 미국배당다우존스 2.98"],
+ "042430":["TENCENT HOLDINGS LTD 12.01","Alibaba Group Holding Ltd 9.28","TAIWAN SEMICONDUCTOR-SP ADR 7.95","China Construction Bank Corp 6.54","NAURA TECHNOLOGY GROUP CO-A 5.52","China Life Insurance Company Ltd. 5.05","ZHONGJI INNOLIGHT CO LTD-A 4.17","SEMICONDUCTOR MANUFACTURING 4.06","Contemporary Amperex Technology Co Ltd 3.73","BANK OF CHINA LTD-H 3.63"],
+ "040429":["TAIWAN SEMICONDUCT 8.68","NVIDIA CORP 8.51","SK하이닉스 7.66","APPLE INC 7.03","BROADCOM INC 6.74","ALPHABET INC - CL A 6.65","VERTIV HOLDINGS CO 4.75","APPLIED MATERIAL 4.74","TESLA INC 4.72","ARM Holdings PLC 4.64"],
+ "040438":["TAIWAN SEMICONDUCT 9.00","NVIDIA CORP 8.83","SK하이닉스 7.94","APPLE INC 7.29","BROADCOM INC 7.00","ALPHABET INC - CL A 6.89","VERTIV HOLDINGS CO 4.93","APPLIED MATERIAL 4.92","TESLA INC 4.90","ARM Holdings PLC 4.81"],
+ "073101":["AB-American Growth Portfolio Class SK 92.87"],
+ "073124":["AB-American Growth Portfolio Class SK 96.58"],
+ "010953":["유진챔피언초단기채혼합자산투자신탁 Class C-S 5.61","국고02000-4603 2.27","국고01875-5103 1.82","디에스투자증(콜) 1.75","신한 자금부(CD) 1.73","롯데카드547 1.69","롯데카드569-3 1.61","뉴스텔라제육차1-1 1.50","현대카드836-2 1.00","메리츠증권2509-3 0.91"],
+};
+const HOLD=Object.assign({},HOLD_STATIC,HOLD_AUTO);
+const LB={"073101":"AB미국그로스","073124":"AB미국그로스 UH","042430":"KCGI차이나","040429":"한투 AI&반도체 H","040438":"한투 AI&반도체 UH","010953":"유진 단기채","484210":"미래 퇴직연금배당커버드콜","K55101EI6779":"한투 인컴주는 월배당(A)"};
+// ───────── 데이터 준비 ─────────
+const DN=s=>Date.UTC(+s.slice(0,4),+s.slice(4,6)-1,+s.slice(6,8))/864e5;
+const NAV={d:AXIS.split(" "),v:{}};NAV.n=NAV.d.map(DN);
+for(const k in NAVS)NAV.v[k]=NAVS[k].split(",").map(x=>x===""?null:+x);
+const DMIN=NAV.n[0],DMAX=NAV.n[NAV.n.length-1];
+const D=Object.fromEntries(R.map(r=>[r[0],r]));
+const F=(g,type,name,feat,etc,codes)=>({g,type,name,feat,etc,codes});
+const FUNDS=[
+ F(1,"미국주식","AB미국그로스증권투자신탁","미국S&P500기본 + 성장주","",["073101"]),
+ F(1,"미국주식","AB미국그로스UH증권투자신탁","미국S&P500기본 + 성장주+환율","",["073124"]),
+ F(1,"국내주식","미래(에셋)퇴직연금배당커버드콜액티브증권자투자신탁","배당주 투자 + 콜옵션 매도","",["484210"]),
+ F(1,"중국주식","KCGI차이나증권투자신탁","중국본토+홍콩+해외상장 범중국 기업","",["042430"]),
+ F(2,"혼합형","한국투자적극TDF알아서ETF포커스2050","전세계 주식 + 채권","IRP 100%가능",["069083"]),
+ F(2,"혼합형","신한마음편한적극TDF2050증권투자신탁","전세계 주식 + 채권","IRP 100%가능",["073242"]),
+ F(2,"주식","한국투자글로벌AI&반도체TOP10증권자투자신탁","AI&반도체 주요 10개 기업 집중 투자","",["040429","040438"]),
+ F(2,"혼합형","한국투자인컴주는ETF모으기월배당펀드","커버드콜+고배당+하이일드+채권","IRP 100% 가능",["K55101EI6779"]),
+ F(3,"단기채권","유진챔피언단기채증권자투자신탁","단기채권 예적금 수준","IRP 100% 가능",["010953"]),
+];
+const ME=new Set(FUNDS.flatMap(f=>f.codes));
+const $=s=>document.querySelector(s),v=x=>x==null||x===""?"-":x;
+const esc=s=>String(s).replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
+const pct=x=>x==null?"-":`<span class="${x>0?"pos":x<0?"neg":""}">${x>0?"+":""}${x.toFixed(2)}%</span>`;
+const date=s=>s.replace(/(\d{4})(\d\d)(\d\d)/,"$1.$2.$3");
+const dstr=n=>new Date(n*864e5).toISOString().slice(0,10).replace(/-/g,".");
+const shortFam=r=>r[13].startsWith(r[2])?r[13].slice(r[2].length):r[13];
+const label=(c,mode)=>{const r=D[c];if(LB[c])return LB[c];return mode=="co"?r[12]+" "+shortFam(r):r[13]};
+const PAL=["#1f77b4","#d62728","#2ca02c","#9467bd","#ff7f0e","#8c564b","#e377c2","#17becf","#bcbd22","#7f7f7f","#0b3d91","#a83279","#00897b","#f9a825","#5d4037","#455a64","#c2185b","#00acc1"];
+const PERS=[[1,"1개월"],[3,"3개월"],[6,"6개월"],[12,"1년"],[36,"3년(전체)"]];
+const VINT=[...new Set(R_TDF.map(r=>r[12]))].sort();
+const VCOL=["#6a1b9a","#4527a0","#283593","#1565c0","#0277bd","#00838f","#2e7d32","#9e9d24","#f57f17","#e65100","#bf360c"];
+const vcol=y=>VCOL[Math.min(VINT.indexOf(y),VCOL.length-1)];
+// 기간 시작일: n개월 전 같은 날짜(축에 없으면 다음 표본일부터)
+const cutoff=p=>Date.UTC(+NAV.d[NAV.d.length-1].slice(0,4),+NAV.d[NAV.d.length-1].slice(4,6)-1-p,+NAV.d[NAV.d.length-1].slice(6,8))/864e5;
+const perView=p=>({v0:Math.max(DMIN,cutoff(p)),v1:DMAX});
+// 보이는 구간의 시작 표본을 0%로 맞춘 누적수익률
+function series(codes,v0,v1){const n=NAV.n.length;let s=0;while(s<n&&NAV.n[s]<v0-1e-9)s++;let e=n-1;while(e>0&&NAV.n[e]>v1+1e-9)e--;
+ return codes.map(c=>{const a=NAV.v[c]||[];let bi=-1;for(let i=s;i<=e;i++)if(a[i]!=null){bi=i;break}
+  if(bi<0)return{c,pts:[]};const pts=[];for(let i=bi;i<=e;i++)if(a[i]!=null)pts.push([i,(a[i]/a[bi]-1)*100]);return{c,pts}})}
+const endRet=(c,p)=>{const V=perView(p);const s=series([c],V.v0,V.v1)[0];return s.pts.length?s.pts[s.pts.length-1][1]:null};
+// ───────── 그래프(휠 확대/축소, 드래그 이동, 더블클릭 초기화) ─────────
+const VIEW={},VPER={},CFG={},CH={};
+function niceStep(x){const e=Math.pow(10,Math.floor(Math.log10(x)));const f=x/e;return (f<=1?1:f<=2?2:f<=5?5:10)*e}
+function chartBox(id,cfg,p){CFG[id]=cfg;if(!VIEW[id]||VPER[id]!==p){VIEW[id]=perView(p);VPER[id]=p}
+ return `<div class=tog><span class=hint>마우스 휠: 확대/축소 · 드래그: 좌우 이동 · 더블클릭: 초기화 <a data-zr="${id}">초기화</a></span></div><div class=cb id="${id}"></div><div id="lg-${id}"></div>`}
+function draw(id){
+ const c=CFG[id],box=document.getElementById(id);if(!c||!box)return;const V=VIEW[id],items=c.items();
+ const S=series(items.map(x=>x.c),V.v0,V.v1);
+ const W=900,H=380,L=52,Rm=14,T=12,B=26;let mn=0,mx=0;
+ S.forEach((s,i)=>{if(items[i].off)return;s.pts.forEach(q=>{mn=Math.min(mn,q[1]);mx=Math.max(mx,q[1])})});
+ if(mx-mn<0.5){mx=mn+0.5}
+ const st=niceStep((mx-mn)/5),lo=Math.floor(mn/st+1e-9)*st,hi=Math.ceil(mx/st-1e-9)*st;
+ const X=d=>L+(d-V.v0)/(V.v1-V.v0)*(W-L-Rm),Y=y=>T+(hi-y)/(hi-lo)*(H-T-B);
+ let g="";for(let y=lo;y<=hi+1e-9;y+=st)g+=`<line x1="${L}" x2="${W-Rm}" y1="${Y(y)}" y2="${Y(y)}" stroke="${Math.abs(y)<1e-9?"#555":"#e3e5ee"}"/><text x="${L-6}" y="${Y(y)+4}" font-size="11" text-anchor="end" fill="#666">${Math.round(y*100)/100}%</text>`;
+ const span=V.v1-V.v0,nt=6;for(let k=0;k<=nt;k++){const d=V.v0+span*k/nt;g+=`<text x="${X(d)}" y="${H-8}" font-size="11" text-anchor="${k==nt?"end":k==0?"start":"middle"}" fill="#666">${dstr(d).slice(span>150?0:2,span>150?7:10)}</text>`}
+ g+=`<clipPath id="cp${id}"><rect x="${L}" y="${T}" width="${W-L-Rm}" height="${H-T-B}"/></clipPath><g clip-path="url(#cp${id})">`;
+ S.forEach((s,i)=>{if(items[i].off||!s.pts.length)return;const it=items[i];g+=`<path d="${s.pts.map((q,j)=>(j?"L":"M")+X(NAV.n[q[0]]).toFixed(1)+" "+Y(q[1]).toFixed(1)).join("")}" fill="none" stroke="${it.color}" stroke-width="${it.bold?3:1.5}" stroke-linejoin="round" ${it.dash?'stroke-dasharray="6 3"':""} opacity="${it.bold?1:.88}"/>`;
+  if(s.pts.length<=40)s.pts.forEach(q=>{g+=`<circle cx="${X(NAV.n[q[0]]).toFixed(1)}" cy="${Y(q[1]).toFixed(1)}" r="2" fill="${it.color}"/>`})});
+ g+=`</g><line class="cx" x1="0" x2="0" y1="${T}" y2="${H-B}" stroke="#333" stroke-dasharray="3 3" style="display:none"/>`;
+ CH[id]={S,items,V,W,L,Rm};box.innerHTML=`<svg viewBox="0 0 ${W} ${H}">${g}</svg>`;
+ const lg=document.getElementById("lg-"+id);
+ lg.innerHTML=`<div class="lg">`+items.map((it,i)=>{const e=S[i].pts.length?S[i].pts[S[i].pts.length-1][1]:null;return `<span class="${it.off?"off":""}" data-x="${id}|${it.c}"><i style="background:${it.color}"></i>${it.bold?"★ ":""}${esc(it.label)}<b>${e==null?"-":(e>0?"+":"")+e.toFixed(1)+"%"}</b></span>`}).join("")+`</div>`}
+function drawAll(){for(const id in CFG)draw(id)}
+const gx=(e,id)=>{const b=document.getElementById(id),svg=b.querySelector("svg"),r=svg.getBoundingClientRect(),c=CH[id];return {r,vx:(e.clientX-r.left)/r.width*c.W,c}};
+let DRAG=null;
+document.addEventListener("wheel",e=>{const b=e.target.closest(".cb");if(!b||!CH[b.id])return;e.preventDefault();
+ const id=b.id,{vx,c}=gx(e,id),V=VIEW[id];const fr=Math.min(1,Math.max(0,(vx-c.L)/(c.W-c.L-c.Rm)));const cd=V.v0+fr*(V.v1-V.v0);
+ const f=Math.pow(1.0018,e.deltaY);let span=(V.v1-V.v0)*f;span=Math.min(DMAX-DMIN,Math.max(8,span));
+ let v0=cd-fr*span,v1=v0+span;if(v0<DMIN){v0=DMIN;v1=v0+span}if(v1>DMAX){v1=DMAX;v0=v1-span}
+ VIEW[id]={v0,v1};draw(id)},{passive:false});
+document.addEventListener("mousedown",e=>{const b=e.target.closest(".cb");if(!b||!CH[b.id]||e.button!=0)return;DRAG={id:b.id,x:e.clientX,V:{...VIEW[b.id]},moved:false};b.classList.add("drag")});
+document.addEventListener("mouseup",()=>{if(DRAG){const b=document.getElementById(DRAG.id);if(b)b.classList.remove("drag");DRAG=null}});
+document.addEventListener("dblclick",e=>{const b=e.target.closest(".cb");if(!b||!CFG[b.id])return;VIEW[b.id]=perView(VPER[b.id]);draw(b.id)});
+document.addEventListener("mousemove",e=>{
+ const tip=$("#tip");
+ if(DRAG){const id=DRAG.id,c=CH[id];if(!c)return;const svg=document.getElementById(id).querySelector("svg"),r=svg.getBoundingClientRect();
+  const span=DRAG.V.v1-DRAG.V.v0,dd=-(e.clientX-DRAG.x)/r.width*c.W/(c.W-c.L-c.Rm)*span;let v0=DRAG.V.v0+dd,v1=DRAG.V.v1+dd;
+  if(v0<DMIN){v0=DMIN;v1=v0+span}if(v1>DMAX){v1=DMAX;v0=v1-span}VIEW[id]={v0,v1};draw(id);tip.style.display="none";return}
+ const b=e.target.closest(".cb");if(!b||!CH[b.id]){tip.style.display="none";return}
+ const id=b.id,{r,vx,c}=gx(e,id),V=VIEW[id];const dnv=V.v0+(vx-c.L)/(c.W-c.L-c.Rm)*(V.v1-V.v0);
+ if(dnv<V.v0||dnv>V.v1){tip.style.display="none";return}
+ let bi=0,bd=1e9;for(let i=0;i<NAV.n.length;i++){const d=Math.abs(NAV.n[i]-dnv);if(d<bd){bd=d;bi=i}}
+ const rows=[];c.S.forEach((s,k)=>{if(c.items[k].off)return;const q=s.pts.find(z=>z[0]==bi);if(q)rows.push([c.items[k],q[1]])});
+ rows.sort((a,z)=>z[1]-a[1]);
+ const x=(c.L+(NAV.n[bi]-V.v0)/(V.v1-V.v0)*(c.W-c.L-c.Rm))*r.width/c.W;
+ const cx=document.getElementById(id).querySelector(".cx");cx.setAttribute("x1",x*c.W/r.width);cx.setAttribute("x2",x*c.W/r.width);cx.style.display="";
+ const top=rows.slice(0,14),bot=rows.length>14?rows.slice(-3):[];
+ const line=([it,y])=>`<div><i style="display:inline-block;width:10px;height:3px;background:${it.color};margin-right:5px"></i>${esc(it.label)} <b>${y>0?"+":""}${y.toFixed(1)}%</b></div>`;
+ tip.innerHTML=`<b>${date(NAV.d[bi])}</b><br>`+top.map(line).join("")+(bot.length?`<div style="color:#888">… ${rows.length-14}개 중 하위</div>`+bot.slice(-Math.min(3,rows.length-14)).map(line).join(""):"");
+ tip.style.display="block";tip.style.left=Math.min(e.clientX+14,innerWidth-280)+"px";tip.style.top=Math.min(e.clientY+14,innerHeight-tip.offsetHeight-8)+"px"});
+// ───────── 화면 ─────────
+function home(){
+ let h="";
+ [1,2,3].forEach(g=>{
+  h+=`<table><tr><th style="width:90px">유형<th>펀드명<th>상품특징 (최근일 기준)<th style="width:120px">기타</tr>`+
+  FUNDS.map((f,i)=>f.g==g?`<tr class=f data-i="${i}"><td>${esc(f.type)}<td class=l><span class=tag>${esc(f.name)}</span><td class=l>${esc(f.feat)}<td>${esc(f.etc)}</tr>`:"").join("")+`</table>`;
+ });
+ return h+"<p>펀드를 누르면 그래프와 상세 정보를 볼 수 있습니다.</p>";
+}
+let dp=12;
+function detail(i){
+ const f=FUNDS[i],rows=f.codes.map(c=>D[c]);
+ let h=`<span class=back data-t="home">← 라인업으로</span><h2>${esc(f.name)}</h2><p>${esc(f.type)} · ${esc(f.feat)} ${f.etc?"· "+esc(f.etc):""}</p>`;
+ const items=()=>f.codes.map((c,k)=>({c,label:label(c),color:PAL[k],bold:true}));
+ h+=`<div class=card><div class=tog>`+PERS.map(([m,t])=>`<a data-dp="${m}" class="${m==dp?"on":""}">${t}</a>`).join("")+`</div>${chartBox("cbd",{items},dp)}<div class=note>선택 기간 시작일을 0%로 맞춘 누적수익률(분배금 반영). 확대하면 보이는 구간의 시작점이 0%가 됩니다.</div></div>`;
+ if(!rows.length)return h;
+ const K=[["판매 클래스",r=>esc(r[1])],["운용사",r=>r[2]],["펀드코드",r=>r[0]],["설정일",r=>date(r[10])],["위험등급",r=>r[9]],["총보수(연)",r=>r[3]+"%"],["1개월",r=>pct(r[4])],["3개월",r=>pct(r[5])],["6개월",r=>pct(r[6])],["1년",r=>pct(r[7])],["3년",r=>pct(r[8])],["설정액(억원)",r=>r[11]==null?"-":r[11].toLocaleString()],["주요 보유종목 TOP10 (%)",r=>{const a=HOLD[r[0]];if(!a)return "-";const w=a.map(x=>+x.split(" ").pop());const m=Math.max(...w);return `<ul class=hold>`+a.map((x,k)=>`<li><s style="width:${w[k]/m*90}px"></s>${esc(x)}</li>`).join("")+`</ul>`}]];
+ return h+`<div class=wrap><table>`+K.map(([k,fn])=>`<tr><td class=k>${k}`+rows.map(r=>`<td${k.startsWith("주요")?" class=l":""}>${fn(r)}`).join("")+`</tr>`).join("")+`</table></div>`+
+  rows.filter(r=>NOTE[r[0]]).map(r=>`<p class=note>※ ${esc(NOTE[r[0]])}</p>`).join("");
+}
+let tp=12,sk=null,dir=-1,vin=2050,coSel="한국투자",famSel="전체";const HID=new Set(),VSEL=new Set();
+const COLS=[["펀드명",1],["운용사",2],["총보수",3],["1개월",4],["3개월",5],["6개월",6],["1년",7],["3년",8],["설정액(억)",11],["위험등급",9]];
+function perBtns(){return `<span style="width:12px"></span><b>기간</b>`+PERS.map(([m,t])=>`<a data-tp="${m}" class="${m==tp?"on":""}">${t}</a>`).join("")}
+function fundTable(rows,mode){
+ const es={};rows.forEach(r=>{es[r[0]]=endRet(r[0],tp)});
+ const ord=rows.slice();
+ if(sk!=null)ord.sort((a,b)=>{const x=a[sk],y=b[sk];return (x==null)-(y==null)||(x>y?1:x<y?-1:0)*dir});
+ else if(mode=="co")ord.sort((a,b)=>a[12]-b[12]||a[13].localeCompare(b[13]));
+ else ord.sort((a,b)=>(es[b[0]]??-1e9)-(es[a[0]]??-1e9));
+ const mxv=Math.max(1,...Object.values(es).filter(x=>x!=null).map(Math.abs));
+ return `<div class=wrap><table><tr>`+(mode=="co"?`<th>빈티지`:"")+COLS.map(([n,k])=>`<th class=s data-s="${k}">${n}${k==sk?(dir>0?" ▲":" ▼"):""}`).join("")+`<th>${PERS.find(x=>x[0]==tp)[1]} 그래프값</tr>`+
+ ord.map(r=>`<tr class="${ME.has(r[0])?"me":""}">`+(mode=="co"?`<td><b style="color:${vcol(r[12])}">${r[12]}</b>`:"")+`<td class=l><span class=tag>${esc(label(r[0],mode))}</span><br><span class=note>${esc(r[1])}</span><td>${r[2]}<td>${r[3]}%<td>${pct(r[4])}<td>${pct(r[5])}<td>${pct(r[6])}<td>${pct(r[7])}<td>${pct(r[8])}<td>${r[11].toLocaleString()}<td>${r[9]}<td class=l>${es[r[0]]==null?"-":`<span class=bar style="width:${Math.abs(es[r[0]])/mxv*70}px;background:${es[r[0]]>=0?"#e57373":"#64b5f6"}"></span>${pct(es[r[0]])}`}</tr>`).join("")+`</table></div>`;
+}
+// 빈티지별: 같은 빈티지의 모든 운용사 상품 비교
+function tdf(){
+ const rows=R_TDF.filter(r=>r[12]==vin);
+ const items=()=>{const base=rows.map(r=>({c:r[0],label:label(r[0]),bold:ME.has(r[0]),off:HID.has(r[0])}));
+  base.sort((a,b)=>(endRet(b.c,tp)??-1e9)-(endRet(a.c,tp)??-1e9));base.forEach((b,k)=>b.color=PAL[k%PAL.length]);return base};
+ let h=`<h2>빈티지별 비교 <span class=note>— 같은 빈티지의 운용사·상품 비교 (한국투자증권 판매)</span></h2><div class=tog><b>빈티지</b>`+VINT.map(y=>`<a data-y="${y}" class="${y==vin?"on":""}">${y} (${R_TDF.filter(r=>r[12]==y).length})</a>`).join("")+perBtns()+`</div>`;
+ h+=`<div class=card>${chartBox("cbt",{items},tp)}<div class=note>★ 굵은 선 = 추천 라인업 펀드. 범례를 누르면 선을 끄고 켤 수 있고, 범례는 선택 기간 수익률 순입니다. 설정 후 기간이 짧은 펀드는 설정일부터 표시됩니다.</div></div>`;
+ return h+fundTable(rows,"tdf")+`<p class=note>노란 행 = 추천 라인업 펀드. 열 제목을 누르면 정렬됩니다. 총 ${rows.length}개.</p>`;
+}
+// 운용사별: 한 운용사 안에서 상품군·빈티지 비교
+function co(){
+ const cos=[...new Set(R_TDF.map(r=>r[2]))].sort((a,b)=>R_TDF.filter(r=>r[2]==b).length-R_TDF.filter(r=>r[2]==a).length);
+ if(!cos.includes(coSel))coSel=cos[0];
+ const all=R_TDF.filter(r=>r[2]==coSel);
+ const fams=[...new Set(all.map(r=>r[13]))];if(famSel!="전체"&&!fams.includes(famSel))famSel="전체";
+ const vs=[...new Set(all.filter(r=>famSel=="전체"||r[13]==famSel).map(r=>r[12]))].sort();
+ const rows=all.filter(r=>(famSel=="전체"||r[13]==famSel)&&(!VSEL.size||VSEL.has(r[12])));
+ const items=()=>rows.slice().sort((a,b)=>a[12]-b[12]||a[13].localeCompare(b[13])).map(r=>{const fi=fams.indexOf(r[13]);return {c:r[0],label:famSel=="전체"?r[12]+" "+shortFam(r):r[12]+" "+shortFam(r),color:famSel=="전체"?PAL[fi%PAL.length]:vcol(r[12]),bold:ME.has(r[0]),off:HID.has(r[0]),dash:famSel=="전체"&&r[12]%10==5}});
+ let h=`<h2>운용사별 비교 <span class=note>— 한 운용사의 상품군·빈티지 비교</span></h2><div class=tog><b>운용사</b>`+cos.map(c=>`<a data-co="${esc(c)}" class="${c==coSel?"on":""}">${esc(c)} (${R_TDF.filter(r=>r[2]==c).length})</a>`).join("")+`</div>`;
+ h+=`<div class=tog><b>상품군</b><a data-fam="전체" class="${famSel=="전체"?"on":""}">전체</a>`+fams.map(f=>`<a data-fam="${esc(f)}" class="${f==famSel?"on":""}">${esc(f)} (${all.filter(r=>r[13]==f).length})</a>`).join("")+`</div>`;
+ h+=`<div class=tog><b>빈티지</b><a data-vall="1" class="${!VSEL.size?"on":""}">전체</a>`+vs.map(y=>`<a data-vs="${y}" class="${VSEL.has(y)?"on":""}" style="${VSEL.has(y)?"":"border-color:"+vcol(y)+";color:"+vcol(y)}">${y}</a>`).join("")+perBtns()+`</div>`;
+ h+=`<div class=card>${chartBox("cbc",{items},tp)}<div class=note>${famSel=="전체"?"상품군별 색, 점선=5로 끝나는 빈티지(2025·2035…).":"빈티지별 색(2020 보라 → 2070 주황·적색)."} 빈티지 버튼을 눌러 원하는 빈티지만 골라 볼 수 있고, 범례를 누르면 선을 끄고 켤 수 있습니다.</div></div>`;
+ return h+fundTable(rows,"co")+`<p class=note>총 ${rows.length}개. 열 제목을 누르면 정렬됩니다(기본: 빈티지순).</p>`;
+}
+let LASTTAB="";
+function render(){
+ const [t,i]=(location.hash.slice(1)||"home").split("/");
+ if(t!=LASTTAB){sk=null;dir=-1;LASTTAB=t}
+ for(const k in CFG)delete CFG[k];
+ document.querySelectorAll("nav a").forEach(a=>a.classList.toggle("on",a.dataset.t==(t=="detail"?"home":t)));
+ $("#v").innerHTML=t=="detail"?detail(i):t=="tdf"?tdf():t=="co"?co():home();
+ drawAll();
+}
+document.addEventListener("click",e=>{
+ const g=k=>e.target.closest("["+k+"]");
+ const r=g("data-i"),t=g("data-t"),y=g("data-y"),s=g("data-s"),tpp=g("data-tp"),dpp=g("data-dp"),x=g("data-x"),zr=g("data-zr"),cs=g("data-co"),fm=g("data-fam"),vs=g("data-vs"),va=g("data-vall");
+ if(y){vin=+y.dataset.y;render()}
+ else if(tpp){tp=+tpp.dataset.tp;render()}
+ else if(dpp){dp=+dpp.dataset.dp;render()}
+ else if(zr){VIEW[zr.dataset.zr]=perView(VPER[zr.dataset.zr]);draw(zr.dataset.zr)}
+ else if(x){const c=x.dataset.x.split("|")[1];HID.has(c)?HID.delete(c):HID.add(c);draw(x.dataset.x.split("|")[0])}
+ else if(cs){coSel=cs.dataset.co;famSel="전체";VSEL.clear();HID.clear();render()}
+ else if(fm){famSel=fm.dataset.fam;VSEL.clear();render()}
+ else if(vs){const y=+vs.dataset.vs;VSEL.has(y)?VSEL.delete(y):VSEL.add(y);render()}
+ else if(va){VSEL.clear();render()}
+ else if(s){const k=+s.dataset.s;dir=k==sk?-dir:1;sk=k;render()}
+ else if(r)location.hash="detail/"+r.dataset.i;else if(t)location.hash=t.dataset.t;
+});
+addEventListener("hashchange",render);render();
+</script></body></html>
