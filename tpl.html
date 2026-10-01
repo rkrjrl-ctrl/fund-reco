@@ -42,9 +42,9 @@ td.k{background:#f0f1f8;font-weight:bold;text-align:left;white-space:nowrap}
 .hint{font-size:12px;color:#666;margin-left:auto}
 .hint a{padding:2px 10px;font-size:12px}
 </style></head><body><main>
-<nav><a data-t="home">추천 라인업</a><a data-t="tdf">빈티지별 비교</a><a data-t="co">운용사별 비교</a></nav>
+<nav><a data-t="home">추천 라인업</a><a data-t="tdf">빈티지별 비교</a><a data-t="co">운용사별 비교</a><a data-t="var">변액 펀드 비교</a><a data-t="sim">조합 시뮬레이터</a></nav>
 <div id="v"></div>
-<p class="note">출처: 한국투자증권 펀드 검색·상세(온라인 판매 클래스, 연금저축 C-Pe 클래스 기준, 기준일 @@ASOF@@, 그래프는 분배금 반영 수정기준가로 표의 기간수익률과 같은 기준일·산식), FunETF(미래 퇴직연금배당·인컴주는 월배당), 미래에셋자산운용·한국투자신탁운용 공식 상품 페이지(보수·보유종목). 수익률은 누적(%), 설정액은 펀드 전체 기준(억원). 그래프는 영업일 단위 기준가입니다. 과거 수익률은 미래 수익을 보장하지 않습니다. 자동 갱신: @@UPDATED@@</p>
+<p class="note">출처: 한국투자증권 펀드 검색·상세(온라인 판매 클래스, 연금저축 C-Pe 클래스 기준, 기준일 @@ASOF@@, 그래프는 분배금 반영 수정기준가로 표의 기간수익률과 같은 기준일·산식), FunETF(미래 퇴직연금배당·인컴주는 월배당), 메트라이프생명 공시실(변액보험 기준가 현황), 미래에셋자산운용·한국투자신탁운용 공식 상품 페이지(보수·보유종목). 수익률은 누적(%), 설정액은 펀드 전체 기준(억원). 그래프는 영업일 단위 기준가입니다. 과거 수익률은 미래 수익을 보장하지 않습니다. 자동 갱신: @@UPDATED@@</p>
 </main>
 <div id="tip"></div>
 <script>
@@ -56,7 +56,7 @@ const HOLD=Object.assign({},HOLD_STATIC,HOLD_AUTO);
 // ───────── 데이터 준비 ─────────
 const DN=s=>Date.UTC(+s.slice(0,4),+s.slice(4,6)-1,+s.slice(6,8))/864e5;
 const NAV={d:AXIS.split(" "),v:{}};NAV.n=NAV.d.map(DN);
-for(const k in NAVS)NAV.v[k]=NAVS[k].split(",").map(x=>x===""?null:+x);
+for(const k in NAVS)NAV.v[k]=new Array(NOFF[k]||0).fill(null).concat(NAVS[k].split(",").map(x=>x===""?null:+x));
 const DMIN=NAV.n[0],DMAX=NAV.n[NAV.n.length-1];
 const D=Object.fromEntries(R.map(r=>[r[0],r]));
 const FUNDS=LINEUP;
@@ -75,7 +75,7 @@ const VCOL=["#6a1b9a","#4527a0","#283593","#1565c0","#0277bd","#00838f","#2e7d32
 const vcol=y=>VCOL[Math.min(VINT.indexOf(y),VCOL.length-1)];
 // 기간 시작일: n개월 전 같은 날짜(축에 없으면 다음 표본일부터)
 const cutoff=p=>Date.UTC(+NAV.d[NAV.d.length-1].slice(0,4),+NAV.d[NAV.d.length-1].slice(4,6)-1-p,+NAV.d[NAV.d.length-1].slice(6,8))/864e5;
-const perView=p=>({v0:Math.max(DMIN,cutoff(p)),v1:DMAX});
+const perView=p=>typeof p=="string"?{v0:NAV.n[+p.slice(1)],v1:DMAX}:{v0:Math.max(DMIN,cutoff(p)),v1:DMAX};
 // 보이는 구간의 시작 표본을 0%로 맞춘 누적수익률
 function series(codes,v0,v1){const n=NAV.n.length;let s=0;while(s<n&&NAV.n[s]<v0-1e-9)s++;let e=n-1;while(e>0&&NAV.n[e]>v1+1e-9)e--;
  return codes.map(c=>{const a=NAV.v[c]||[];let bi=-1;for(let i=s;i<=e;i++)if(a[i]!=null){bi=i;break}
@@ -188,19 +188,108 @@ function co(){
  h+=`<div class=card>${chartBox("cbc",{items},tp)}<div class=note>${famSel=="전체"?"상품군별 색, 점선=5로 끝나는 빈티지(2025·2035…).":"빈티지별 색(2020 보라 → 2070 주황·적색)."} 빈티지 버튼을 눌러 원하는 빈티지만 골라 볼 수 있고, 범례를 누르면 선을 끄고 켤 수 있습니다.</div></div>`;
  return h+fundTable(rows,"co")+`<p class=note>총 ${rows.length}개. 열 제목을 누르면 정렬됩니다(기본: 빈티지순).</p>`;
 }
+// ───────── 변액(메트라이프생명) ─────────
+// 행: [코드(M:..),펀드명,유형,첫 기준가일,가입 가능 상품(쉼표)]
+const DV=Object.fromEntries(R_VAR.map(r=>[r[0],r]));
+const VFLAG={"현재":["현재동행","현재동행Plus"],"동행":["현재동행"],"동행Plus":["현재동행Plus"],"실버":["실버플랜"],"과거":["과거동행"]};
+const VFLT=[["현재","현재 판매(동행·동행 Plus)"],["동행Plus","동행 Plus"],["실버","실버플랜"],["과거","과거 동행 버전"],["전체","전체"]];
+const VGRP=["전체","주식형","채권형","혼합형","TDF","기타"];
+let vgf="전체",vff="현재",vtp=12;
+const vn=c=>DV[c][1],vsel=()=>R_VAR.filter(r=>(vgf=="전체"||r[2]==vgf)&&(vff=="전체"||VFLAG[vff].some(f=>r[4].split(",").includes(f))));
+const idx0=c=>{const a=NAV.v[c];for(let i=0;i<a.length;i++)if(a[i]!=null)return i;return -1};
+// 기간수익률: 펀드가 해당 기간보다 짧으면 표시하지 않음
+const retP=(c,p)=>{const i=idx0(c);if(i<0)return null;if(p!=999&&NAV.n[i]>cutoff(p)+7)return null;return endRet(c,p)};
+const annual=c=>{const r=endRet(c,999),i=idx0(c);if(r==null||i<0)return null;const y=(DMAX-NAV.n[i])/365.25;return y<1?null:(Math.pow(1+r/100,1/y)-1)*100};
+const VPERS=[[1,"1개월"],[3,"3개월"],[6,"6개월"],[12,"1년"],[36,"3년"],[60,"5년"],[999,"설정일부터"]];
+const vperBtns=()=>`<span style="width:12px"></span><b>기간</b>`+VPERS.map(([m,t])=>`<a data-vp="${m}" class="${m==vtp?"on":""}">${t}</a>`).join("");
+let vsk=null,vdir=-1;
+function variable(){
+ const rows=vsel();
+ const es={};rows.forEach(r=>{es[r[0]]=retP(r[0],vtp)});
+ const items=()=>{const base=rows.map(r=>({c:r[0],label:r[1],off:HID.has(r[0])}));base.sort((a,b)=>(endRet(b.c,vtp)??-1e9)-(endRet(a.c,vtp)??-1e9));base.forEach((b,k)=>b.color=PAL[k%PAL.length]);return base};
+ let h=`<h2>변액 펀드 비교 <span class=note>— 메트라이프생명 변액연금 동행·동행 Plus, 실버플랜 변액유니버셜에서 선택할 수 있는(있었던) 펀드</span></h2>`;
+ h+=`<div class=tog><b>유형</b>`+VGRP.map(g=>`<a data-vg="${g}" class="${g==vgf?"on":""}">${g} (${R_VAR.filter(r=>g=="전체"||r[2]==g).length})</a>`).join("")+`</div>`;
+ h+=`<div class=tog><b>가입 상품</b>`+VFLT.map(([k,t])=>`<a data-vf="${k}" class="${k==vff?"on":""}">${t}</a>`).join("")+vperBtns()+`</div>`;
+ h+=`<div class=card>${chartBox("cbv",{items},vtp)}<div class=note>선택 기간 시작일을 0%로 맞춘 누적수익률(특별계정 기준가). 범례를 누르면 선을 끄고 켤 수 있고, 마우스 휠로 확대/축소합니다. 설정 후 기간이 짧은 펀드는 설정일부터 표시됩니다.</div></div>`;
+ const col=[["펀드명",1],["유형",2],["설정일(기준가 시작)",3]];
+ const ord=rows.slice();
+ if(vsk!=null)ord.sort((a,b)=>{const f=r=>vsk==10?annual(r[0]):vsk==9?endRet(r[0],999):vsk>=4&&vsk<=8?retP(r[0],VPERS[vsk-4][0]):r[vsk];const x=f(a),y=f(b);return (x==null)-(y==null)||(x>y?1:x<y?-1:0)*vdir});
+ else ord.sort((a,b)=>(es[b[0]]??-1e9)-(es[a[0]]??-1e9));
+ const mxv=Math.max(1,...Object.values(es).filter(x=>x!=null).map(Math.abs));
+ const heads=[["펀드명",1],["유형",2],["기준가 시작일",3],...VPERS.slice(0,5).map(([m,t],k)=>[t,4+k]),["설정일부터",9],["연환산",10]];
+ h+=`<div class=wrap><table><tr>`+heads.map(([n,k])=>`<th class=s data-vs2="${k}">${n}${k==vsk?(vdir>0?" ▲":" ▼"):""}`).join("")+`<th>${VPERS.find(x=>x[0]==vtp)[1]} 그래프값</tr>`+
+ ord.map(r=>{const c=r[0],e=es[c];return `<tr><td class=l><span class=tag>${esc(r[1])}</span><br><span class=note>${esc(r[4].split(",").map(f=>({현재동행:"동행",현재동행Plus:"동행Plus",과거동행:"과거동행",실버플랜:"실버"}[f])).filter((x,i,a)=>a.indexOf(x)==i).join("·"))}</span><td>${r[2]}<td>${date(r[3])}`+
+  VPERS.slice(0,5).map(([m])=>`<td>${pct(retP(c,m))}`).join("")+`<td>${pct(endRet(c,999))}<td>${pct(annual(c))}<td class=l>${e==null?"-":`<span class=bar style="width:${Math.abs(e)/mxv*70}px;background:${e>=0?"#e57373":"#64b5f6"}"></span>${pct(e)}`}</tr>`}).join("")+`</table></div>`;
+ return h+`<p class=note>총 ${rows.length}개. 열 제목을 누르면 정렬됩니다. 같은 이름의 펀드도 상품 버전(1호·2호 등)에 따라 별개 펀드이며 기준가가 다릅니다. 기준가는 특별계정(펀드) 기준가로 보험 사업비·위험보험료는 반영되지 않은 값입니다.</p>`;
+}
+// ───────── 조합 시뮬레이터 ─────────
+let SW={},sStart="",sReb="m",sCur=true;
+try{const s=JSON.parse(localStorage.getItem("simW")||"null");if(s){SW=s.w||{};sStart=s.s||"";sReb=s.r||"m"}}catch(e){}
+const saveSim=()=>{try{localStorage.setItem("simW",JSON.stringify({w:SW,s:sStart,r:sReb}))}catch(e){}};
+const REB={n:"안 함(처음 비중으로 보유만)",m:"매월",q:"분기",h:"반기",y:"매년"};
+const perKey=(i,m)=>{const d=NAV.d[i],y=+d.slice(0,4),mo=+d.slice(4,6);return m=="m"?y*12+mo:m=="q"?y*4+Math.floor((mo-1)/3):m=="h"?y*2+Math.floor((mo-1)/6):y};
+function stats(arr,s,e){ // arr: 가격(또는 지수) 배열, s..e 구간
+ const n=[];for(let i=s;i<=e;i++)if(arr[i]!=null)n.push(i);if(n.length<2)return null;
+ const a=arr[n[0]],z=arr[n[n.length-1]],yrs=(NAV.n[n[n.length-1]]-NAV.n[n[0]])/365.25;let pk=-1e9,mdd=0,sm=0,sq=0,k=0;
+ for(let j=0;j<n.length;j++){const v=arr[n[j]];pk=Math.max(pk,v);mdd=Math.min(mdd,v/pk-1);if(j){const r=v/arr[n[j-1]]-1;sm+=r;sq+=r*r;k++}}
+ const mu=sm/k,sd=Math.sqrt(Math.max(0,sq/k-mu*mu))*Math.sqrt(260);
+ return {tot:(z/a-1)*100,cagr:yrs>=1?(Math.pow(z/a,1/yrs)-1)*100:null,vol:sd*100,mdd:mdd*100,yrs};
+}
+function simCalc(){
+ const sel=Object.entries(SW).filter(([c,w])=>w>0&&DV[c]);const sum=sel.reduce((t,[,w])=>t+w,0);
+ if(!sel.length)return null;
+ const first=Math.max(...sel.map(([c])=>idx0(c)));let s=first;
+ if(sStart){const t=Date.UTC(+sStart.slice(0,4),+sStart.slice(5,7)-1,+sStart.slice(8,10))/864e5;let i=0;while(i<NAV.n.length&&NAV.n[i]<t)i++;s=Math.max(s,i)}
+ const N=NAV.n.length,e=N-1,arr=new Array(N).fill(null),P=sel.map(([c])=>NAV.v[c]),W=sel.map(([,w])=>w/sum);
+ let u=P.map((p,k)=>W[k]/p[s]),pk=perKey(s,sReb);arr[s]=100;
+ for(let i=s+1;i<=e;i++){let v=0;for(let k=0;k<P.length;k++)v+=u[k]*P[k][i];arr[i]=v*100;
+  if(sReb!="n"&&perKey(i,sReb)!=pk){pk=perKey(i,sReb);u=P.map((p,k)=>W[k]*v/p[i])}}
+ return {sel,sum,s,e,arr,first};
+}
+function simBody(){
+ const R=simCalc();
+ if(!R)return `<p class=note>아래 표에서 펀드별 비중(%)을 입력하면 조합의 누적 수익률 그래프가 그려집니다.</p>`;
+ NAV.v.SIM=R.arr;
+ const items=()=>[{c:"SIM",label:"★ 내 조합",color:"#111",bold:true},...R.sel.map(([c,w],k)=>({c,label:`${vn(c)} ${Math.round(w/R.sum*1000)/10}%`,color:PAL[(k+1)%PAL.length],off:HID.has(c),dash:true}))];
+ const key="s"+R.s;
+ let h=(Math.abs(R.sum-100)>1e-6?`<p class=note style="color:#c62828">비중 합계가 ${Math.round(R.sum*10)/10}%라서 합계로 나눠 100%로 환산해 계산했습니다.</p>`:"")+
+  `<p class=note>계산 구간: ${date(NAV.d[R.s])} ~ ${date(NAV.d[R.e])} (가장 늦게 설정된 펀드의 첫 기준가일 ${date(NAV.d[R.first])} 이후만 가능)</p>`;
+ h+=`<div class=card>${chartBox("cbs",{items},key)}<div class=note>시작일을 0%로 맞춘 누적수익률. 점선 = 구성 펀드(범례를 누르면 켜고 끕니다). 마우스 휠로 확대/축소, 드래그로 이동.</div></div>`;
+ const rowS=(nm,a,b)=>{const t=stats(a,R.s,R.e);return t?`<tr><td class=l>${b?"<b>"+esc(nm)+"</b>":esc(nm)}<td>${pct(t.tot)}<td>${t.cagr==null?"-":pct(t.cagr)}<td>${t.vol.toFixed(1)}%<td>${pct(t.mdd)}</tr>`:""};
+ h+=`<div class=wrap><table><tr><th>구분<th>누적수익률<th>연환산수익률<th>연 변동성<th>최대 낙폭(MDD)</tr>`+rowS("내 조합",R.arr,1)+R.sel.map(([c])=>rowS(vn(c),NAV.v[c])).join("")+`</table></div>`;
+ return h+`<p class=note>리밸런싱: ${REB[sReb]} · 일시금 투자 가정 · 특별계정 기준가 기준(보험 사업비·위험보험료·세금 미반영) · 과거 수익률은 미래 수익을 보장하지 않습니다.</p>`;
+}
+function simUpdate(){const b=$("#simres");if(!b)return;delete CFG.cbs;delete VIEW.cbs;b.innerHTML=simBody();if(CFG.cbs)draw("cbs");
+ const t=Object.values(SW).reduce((a,b)=>a+(+b||0),0);$("#simsum").innerHTML=`합계 <b style="color:${Math.abs(t-100)<1e-6?"#2e7d32":"#c62828"}">${Math.round(t*10)/10}%</b>`}
+function sim(){
+ const rows=R_VAR.filter(r=>!sCur||r[4].includes("현재"));
+ let h=`<h2>조합 시뮬레이터 <span class=note>— 변액 펀드를 여러 개 섞었을 때의 과거 수익률</span></h2>
+ <div class=tog><b>시작일</b><input type=date id=sstart value="${sStart}" min="${NAV.d[0].replace(/(\d{4})(\d\d)(\d\d)/,"$1-$2-$3")}" style="padding:4px"><span class=note>(비우면 가능한 가장 이른 날)</span><span style="width:12px"></span><b>리밸런싱</b><select id=sreb style="padding:5px">${Object.entries(REB).map(([k,t])=>`<option value="${k}" ${k==sReb?"selected":""}>${t}</option>`).join("")}</select>
+ <span style="width:12px"></span><a data-sa="norm">합계 100%로 맞추기</a><a data-sa="clr">비중 초기화</a><a data-sa="eq">선택 펀드 균등</a><a data-sa="cur" class="${sCur?"on":""}">현재 판매 펀드만 보기</a><span id=simsum style="margin-left:auto"></span></div>
+ <div class=wrap><table><tr><th>펀드<th>유형<th>기준가 시작일<th style="width:110px">비중(%)</tr>`+
+ VGRP.slice(1).flatMap(g=>rows.filter(r=>r[2]==g)).map(r=>`<tr><td class=l>${esc(r[1])}<td>${r[2]}<td>${date(r[3])}<td><input type=number min=0 max=100 step=5 data-w="${r[0]}" value="${SW[r[0]]||""}" placeholder="0" style="width:80px;padding:4px;text-align:right"></tr>`).join("")+`</table></div><div id=simres>${simBody()}</div>`;
+ return h;
+}
+document.addEventListener("input",e=>{const w=e.target.closest("[data-w]");if(w){const v=parseFloat(w.value);if(v>0)SW[w.dataset.w]=v;else delete SW[w.dataset.w];saveSim();simUpdate()}});
+document.addEventListener("change",e=>{if(e.target.id=="sstart"){sStart=e.target.value;saveSim();simUpdate()}else if(e.target.id=="sreb"){sReb=e.target.value;saveSim();simUpdate()}});
 let LASTTAB="";
 function render(){
  const [t,i]=(location.hash.slice(1)||"home").split("/");
- if(t!=LASTTAB){sk=null;dir=-1;LASTTAB=t}
+ if(t!=LASTTAB){sk=null;dir=-1;vsk=null;LASTTAB=t}
  for(const k in CFG)delete CFG[k];
  document.querySelectorAll("nav a").forEach(a=>a.classList.toggle("on",a.dataset.t==(t=="detail"?"home":t)));
- $("#v").innerHTML=t=="detail"?detail(i):t=="tdf"?tdf():t=="co"?co():home();
+ $("#v").innerHTML=t=="detail"?detail(i):t=="tdf"?tdf():t=="co"?co():t=="var"?variable():t=="sim"?sim():home();
  drawAll();
 }
 document.addEventListener("click",e=>{
  const g=k=>e.target.closest("["+k+"]");
- const r=g("data-i"),t=g("data-t"),y=g("data-y"),s=g("data-s"),tpp=g("data-tp"),dpp=g("data-dp"),x=g("data-x"),zr=g("data-zr"),cs=g("data-co"),fm=g("data-fam"),vs=g("data-vs"),va=g("data-vall");
- if(y){vin=+y.dataset.y;render()}
+ const r=g("data-i"),t=g("data-t"),y=g("data-y"),s=g("data-s"),tpp=g("data-tp"),dpp=g("data-dp"),x=g("data-x"),zr=g("data-zr"),cs=g("data-co"),fm=g("data-fam"),vs=g("data-vs"),va=g("data-vall"),vg=g("data-vg"),vf=g("data-vf"),vp=g("data-vp"),vs2=g("data-vs2"),sa=g("data-sa");
+ if(vg){vgf=vg.dataset.vg;render()}
+ else if(vf){vff=vf.dataset.vf;render()}
+ else if(vp){vtp=+vp.dataset.vp;render()}
+ else if(vs2){const k=+vs2.dataset.vs2;vdir=k==vsk?-vdir:1;vsk=k;render()}
+ else if(sa){const a=sa.dataset.sa;if(a=="norm"){const s=Object.values(SW).reduce((x,y)=>x+y,0);if(s>0)for(const c in SW)SW[c]=Math.round(SW[c]/s*1000)/10}else if(a=="clr")SW={};else if(a=="eq"){const c=Object.keys(SW);if(c.length)c.forEach(k=>SW[k]=Math.round(1000/c.length)/10)}else if(a=="cur")sCur=!sCur;saveSim();render()}
+ else if(y){vin=+y.dataset.y;render()}
  else if(tpp){tp=+tpp.dataset.tp;render()}
  else if(dpp){dp=+dpp.dataset.dp;render()}
  else if(zr){VIEW[zr.dataset.zr]=perView(VPER[zr.dataset.zr]);draw(zr.dataset.zr)}

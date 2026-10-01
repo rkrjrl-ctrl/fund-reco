@@ -17,6 +17,7 @@ const EXTRA = ITEMS.filter(i => i.한투검색어).map(i => [i.코드, i.한투�
 const FUNETF = ITEMS.filter(i => i.FunETF코드).map(i => ({ key: i.코드, fundCd: i.FunETF코드, term: String(i.기간), base: i.기준, co: i.운용사, fee: i.총보수, risk: i.위험등급, setup: i.설정일, aum: i.설정액억, name: i.정식명 }));
 const HCACHE = path.join(ROOT, 'holdings.json');   // 보유종목 마지막 성공값(조회 실패 시 대체)
 const HISTF = path.join(ROOT, 'history.json');   // 클래스 출시 이전 구간(FunETF 종류A 기준가) 캐시: 과거는 바뀌지 않으므로 한 번만 받음
+const loadMlCache = () => { const c = readJson(path.join(ROOT, 'metlife-cache.json'), null); if (!c) return null; return { funds: Object.entries(c).map(([code, e]) => ({ code, name: e.n, group: require('./metlife.js').group(e.n), flags: e.fl || [], d: e.d, v: e.v })) }; };
 const readJson = (f, d) => { try { return JSON.parse(fs.readFileSync(f, 'utf8')); } catch (e) { return d; } };
 
 const log = m => { const s = `[${new Date().toISOString()}] ${m}`; console.log(s); try { fs.mkdirSync(path.dirname(LOG), { recursive: true }); fs.appendFileSync(LOG, s + '\n'); } catch (e) {} };
@@ -114,9 +115,13 @@ async function main() {
   for (const i of ITEMS) if (i.과거FunETF코드 && okIds.includes(i.코드)) NAVH[i.코드] = await histNav(i.코드, i.과거FunETF코드);
   const NAVF = {};
   for (const f of FUNETF) { try { NAVF[f.key] = await funetfNav(f); } catch (e) { log('WARN funetf ' + f.key + ' ' + e.message); } }
-  const axis = [...new Set([...okIds.flatMap(p => S[p].d), ...Object.values(NAVF).flatMap(n => n.map(x => x[0])), ...Object.values(NAVH).flatMap(n => n.map(x => x[0]))])].filter(d => d <= END).sort();
+  let ML = null;
+  try { ML = await require('./metlife.js')({ cacheFile: path.join(ROOT, 'metlife-cache.json'), log, retry, sleep, today: new Date(Date.now() + 9 * 3600e3).toISOString().slice(0, 10).replace(/-/g, '') }); }
+  catch (e) { log('WARN 메트라이프 ' + e.message); ML = loadMlCache(); if (!ML) throw e; log('WARN 메트라이프 캐시로 진행'); }
+  const axis = [...new Set([...ML.funds.flatMap(f => f.d), ...okIds.flatMap(p => S[p].d), ...Object.values(NAVF).flatMap(n => n.map(x => x[0])), ...Object.values(NAVH).flatMap(n => n.map(x => x[0]))])].filter(d => d <= END).sort();
   if (axis[axis.length - 1] !== END) throw new Error('기준일 데이터가 시계열에 없음 ' + END);
-  const V = {}, F = {};
+  const V = {}, F = {}, NOFF = {};
+  const packV = (k, arr, fmt) => { const i0 = arr.findIndex(x => x != null); NOFF[k] = i0 < 0 ? 0 : i0; V[k] = arr.slice(NOFF[k]).map(x => x == null ? '' : fmt(x)).join(','); };
   for (const p of okIds) {
     const s = S[p], m = new Map(); s.d.forEach((d, i) => { const v = parseFloat(s.c[i] || s.b[i]); if (!isNaN(v)) m.set(d, v); });
     const first = s.d[0]; let last = null;
@@ -127,7 +132,7 @@ async function main() {
       const k = arr[i0] / hv; let hl = null; const hf = NAVH[p][0][0];
       for (let i = 0; i < i0; i++) { const d = axis[i]; if (d < hf) continue; if (hm.has(d)) hl = hm.get(d); if (hl != null) arr[i] = hl * k; }
     }
-    F[p] = arr; V[p] = arr.map(x => x == null ? '' : String(Math.round(x * 10) / 10)).join(',');
+    F[p] = arr; packV(p, arr, x => String(Math.round(x * 10) / 10));
   }
   // 3) 행
   const R_TDF = tdfRows.filter(d => S[d.PDNO]).map(d => [...rowBase(d), +d.PRDT_NAME.match(/20[2-7][05]/)[0], famOf(d)]);
@@ -140,10 +145,16 @@ async function main() {
       let base; if (f.base === 'first') { base = nav.find(x => x[0] >= axis[0]); base = base && base[1]; } else base = 10;
       let last = null; const first = nav[0][0];
       const arr = axis.map(d => { if (d < first) return null; if (m.has(d)) last = m.get(d); return last == null ? null : Math.round((f.base === 'first' ? 100 * last / base : last / 10) * 100) / 100; });
-      F[f.key] = arr; V[f.key] = arr.map(x => x == null ? '' : String(x)).join(',');
+      F[f.key] = arr; packV(f.key, arr, x => String(x));
       const rr = p => { const x = periodRet(axis, arr, END, p); return x == null ? null : r2(x); };
       R_EXTRA.push([f.key, f.name, f.co, f.fee, rr(1), rr(3), rr(6), rr(12), rr(36), f.risk, f.setup, f.aum]);
     } catch (e) { log('WARN funetf ' + f.key + ' ' + e.message); }
+  }
+  const R_VAR = [];
+  for (const f of ML.funds) {
+    const m = new Map(f.d.map((d, i) => [d, f.v[i]])); let last = null; const first = f.d[0];
+    const arr = axis.map(d => { if (d < first) return null; if (m.has(d)) last = m.get(d); return last; });
+    packV('M:' + f.code, arr, x => String(Math.round(x * 10) / 10)); R_VAR.push(['M:' + f.code, f.name, f.group, first, f.flags.join(',')]);
   }
   // 5) 보유종목(자동 파싱 가능한 한국투자증권 펀드)
   const HOLD_AUTO = {}, hc = readJson(HCACHE, {});
@@ -172,7 +183,7 @@ async function main() {
 const LB=${JSON.stringify(LB)};
 const NOTE=${JSON.stringify(NOTE)};
 const HOLD_STATIC=${JSON.stringify(HOLD_STATIC)};
-const AXIS="${axis.join(' ')}";\nconst R_TDF=[\n${R_TDF.map(r => JSON.stringify(r)).join(',\n')}\n];\nconst R_EXTRA=[\n${R_EXTRA.map(r => JSON.stringify(r)).join(',\n')}\n];\nconst HOLD_AUTO=${JSON.stringify(HOLD_AUTO)};\nconst NAVS={\n${Object.keys(V).map(k => JSON.stringify(k) + ':' + JSON.stringify(V[k])).join(',\n')}\n};`;
+const AXIS="${axis.join(' ')}";\nconst R_TDF=[\n${R_TDF.map(r => JSON.stringify(r)).join(',\n')}\n];\nconst R_EXTRA=[\n${R_EXTRA.map(r => JSON.stringify(r)).join(',\n')}\n];\nconst R_VAR=[\n${R_VAR.map(r => JSON.stringify(r)).join(',\n')}\n];\nconst NOFF=${JSON.stringify(NOFF)};\nconst HOLD_AUTO=${JSON.stringify(HOLD_AUTO)};\nconst NAVS={\n${Object.keys(V).map(k => JSON.stringify(k) + ':' + JSON.stringify(V[k])).join(',\n')}\n};`;
   const html = fs.readFileSync(path.join(ROOT, 'tpl.html'), 'utf8').replace('/*@@DATA@@*/', () => data).replace(/@@ASOF@@/g, asof).replace('@@UPDATED@@', kst + ' (KST)');
   if (html.length < 200000) throw new Error('생성된 HTML이 비정상적으로 작음');
   let saved = 0;
