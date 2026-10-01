@@ -230,14 +230,14 @@ function variable(){
  h+=`<div class=tog><b>기간</b>`+VPERS.map(([m])=>`<a data-vp="${m}" class="${m==vtp&&!ve?"on":""}">${pl(m)}</a>`).join("")+`<span style="width:12px"></span><b>직접 지정</b><input type=date id=vs value="${vs}" min="${iso(DMIN)}" max="${TODAY}" style="padding:4px"> ~ <input type=date id=ve value="${ve}" min="${iso(DMIN)}" max="${TODAY}" style="padding:4px"><a data-vreset="1">기간 초기화</a></div>`;
  h+=`<div class=card><div class=note style="margin-bottom:6px"><b>${dstr(R.v0)} ~ ${dstr(R.v1)}</b> 구간 · ${rows.length}개 펀드${vat?` · ${vat} 가입 기준`:""}</div>${chartBox("cbv",{items},key)}<div class=note>선택 구간의 시작일을 0%로 맞춘 누적수익률(특별계정 기준가). 범례를 누르면 선을 끄고 켤 수 있고, 마우스 휠로 확대/축소합니다. 구간 시작 이후에 설정된 펀드는 설정일부터 표시됩니다.</div></div>`;
  const C=[["펀드명",r=>r[1]],
-  ["구간 수익률",r=>rs[r[0]]&&rs[r[0]].tot],["연 변동성",r=>rs[r[0]]&&rs[r[0]].vol],["최대 낙폭",r=>rs[r[0]]&&rs[r[0]].mdd],
+  ["구간 수익률",r=>rs[r[0]]&&rs[r[0]].tot],["연환산",r=>rs[r[0]]&&rs[r[0]].ann],["연 변동성",r=>rs[r[0]]&&rs[r[0]].vol],["최대 낙폭",r=>rs[r[0]]&&rs[r[0]].mdd],
   ...VPERS.slice(0,5).map(([m,t])=>["현재 "+t,r=>retP(r[0],m)]),["설정일부터",r=>endRet(r[0],999)]];
  const ord=rows.slice();
  if(vsk!=null){const f=C[vsk][1];ord.sort((a,b)=>{const x=f(a),y=f(b);return (x==null)-(y==null)||(x>y?1:x<y?-1:0)*vdir})}else ord.sort((a,b)=>(rs[b[0]]?rs[b[0]].tot:-1e9)-(rs[a[0]]?rs[a[0]].tot:-1e9));
  const mxv=Math.max(1,...Object.values(rs).filter(x=>x).map(x=>Math.abs(x.tot)));
  h+=`<div class=wrap><table class=cmp><tr>`+C.map(([n],k)=>`<th class=s data-vs2="${k}">${n}${k==vsk?(vdir>0?" ▲":" ▼"):""}`).join("")+`<th>구간 그래프값</tr>`+
  ord.map(r=>{const c=r[0],s=rs[c];return `<tr><td class=l><span class=tag>${esc(r[1])}</span>`+
-  (s?`<td>${pct(s.tot)}<td>${s.vol.toFixed(1)}%<td>${pct(s.mdd)}`:`<td>-<td>-<td>-`)+
+  (s?`<td>${pct(s.tot)}<td>${s.ann==null?"-":pct(s.ann)}<td>${s.vol.toFixed(1)}%<td>${pct(s.mdd)}`:`<td>-<td>-<td>-<td>-`)+
   VPERS.slice(0,5).map(([m])=>`<td>${pct(retP(c,m))}`).join("")+`<td>${pct(endRet(c,999))}<td class=l>${s?`<span class=bar style="width:${Math.abs(s.tot)/mxv*70}px;background:${s.tot>=0?"#e57373":"#64b5f6"}"></span>${s.late?`<span class=note>(${dstr(s.late)} 설정)</span>`:""}`:"-"}</tr>`}).join("")+`</table></div>`;
  return h+`<p class=note>총 ${rows.length}개. 열 제목을 누르면 정렬됩니다. 맨 오른쪽 5개 열은 구간과 상관없이 현재(${dstr(DMAX)}) 기준 기간수익률입니다. 같은 이름의 펀드도 상품 버전(1호·2호·3호)에 따라 별개 펀드입니다. 기준가는 특별계정(펀드) 기준가로 보험 사업비·위험보험료·세금은 반영되지 않은 값입니다.</p>`;
 }
