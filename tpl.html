@@ -69,7 +69,7 @@ const dstr=n=>new Date(n*864e5).toISOString().slice(0,10).replace(/-/g,".");
 const shortFam=r=>r[13].startsWith(r[2])?r[13].slice(r[2].length):r[13];
 const label=(c,mode)=>{const r=D[c];if(LB[c])return LB[c];return mode=="co"?r[12]+" "+shortFam(r):r[13]};
 const PAL=["#1f77b4","#d62728","#2ca02c","#9467bd","#ff7f0e","#8c564b","#e377c2","#17becf","#bcbd22","#7f7f7f","#0b3d91","#a83279","#00897b","#f9a825","#5d4037","#455a64","#c2185b","#00acc1"];
-const PERS=[[1,"1개월"],[3,"3개월"],[6,"6개월"],[12,"1년"],[36,"3년(전체)"]];
+const PERS=[[1,"1개월"],[3,"3개월"],[6,"6개월"],[12,"1년"],[36,"3년"],[60,"5년"],[999,"설정일부터"]];
 const VINT=[...new Set(R_TDF.map(r=>r[12]))].sort();
 const VCOL=["#6a1b9a","#4527a0","#283593","#1565c0","#0277bd","#00838f","#2e7d32","#9e9d24","#f57f17","#e65100","#bf360c"];
 const vcol=y=>VCOL[Math.min(VINT.indexOf(y),VCOL.length-1)];

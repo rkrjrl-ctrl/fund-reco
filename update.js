@@ -27,10 +27,27 @@ async function search(k) {
   const t = await post(KIS + '/main/opensearch/result/json_items_web_renewal.jsp', { mode: 'detail', collection: 'witems', idxCount: '0', listCount: '300', commonSaleYn: 'Y', scSaleChannel: '01', menuValue: 'smart', menuType: 'profitRate', query: k });
   return JSON.parse(t).dataList || [];
 }
+// 한국투자증권 차트는 term(개월) 전부터 최대 1275행만 준다 → 60개월 간격으로 구간을 이어 붙여 설정일까지 수집
+async function chartWin(p, term) {
+  const t = await post(KIS + '/main/mall/openfund/FundInfo_Pop.jsp?cmd=A_FP_20270_CHART', { cmd: 'A_FP_20270_CHART', pdno: p, term: String(term), EXCEL_YN: '', gijun_radio: 'CRCT_BSPR24' });
+  const j = JSON.parse(t); if (!j.BASS_DT || j.BASS_DT.length < 5) throw new Error('no chart ' + p + ' term ' + term);
+  return j;
+}
+const ymd = dt => dt.toISOString().slice(0, 10).replace(/-/g, '');
 async function chart(p) {
-  const t = await post(KIS + '/main/mall/openfund/FundInfo_Pop.jsp?cmd=A_FP_20270_CHART', { cmd: 'A_FP_20270_CHART', pdno: p, term: '36', EXCEL_YN: '', gijun_radio: 'CRCT_BSPR24' });
-  const j = JSON.parse(t); if (!j.BASS_DT || !j.BASS_DT.length) throw new Error('no chart ' + p);
-  return { d: j.BASS_DT, c: j.CRCT_BSPR24, b: j.BSPR24 };
+  const m = new Map(), now = new Date();
+  let prevFirst = null;
+  for (let term = 60; term <= 600; term += 60) {
+    const j = await chartWin(p, term), d = j.BASS_DT;
+    if (prevFirst && d[d.length - 1] < prevFirst) throw new Error('차트 구간이 이어지지 않음 ' + p + ' term ' + term);
+    if (prevFirst && d[0] >= prevFirst) break;                       // 더 이전 데이터 없음
+    d.forEach((x, i) => { const v = parseFloat(j.CRCT_BSPR24[i] || j.BSPR24[i]); if (!isNaN(v) && !m.has(x)) m.set(x, v); });
+    prevFirst = d[0];
+    const start = ymd(new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() - term, now.getUTCDate())));
+    if (d[0] > String(+start + 100)) break;                          // 윈도 시작보다 한참 뒤에 시작 = 설정일에 도달
+  }
+  const d = [...m.keys()].sort();
+  return { d, c: d.map(x => m.get(x)), b: [] };
 }
 async function holdings(p) {
   const html = await post(KIS + '/main/mall/openfund/FundInfo_Pop.jsp?cmd=A_FP_20280_1', { cmd: 'A_FP_20280_1', pdno: p, pfundCd: p, fundCd: p });
@@ -57,7 +74,7 @@ async function funetfNav(f) {
   const csrf = (html.match(/name="_csrf"[^>]*content="([^"]+)"/) || html.match(/content="([^"]+)"[^>]*name="_csrf"/) || [])[1];
   if (!csrf) throw new Error('funetf csrf missing');
   const cookie = (r.headers.getSetCookie ? r.headers.getSetCookie() : []).map(c => c.split(';')[0]).join('; ');
-  const p = new URLSearchParams({ gijunYmd: new Date().toISOString().slice(0, 10).replace(/-/g, ''), fundCd: f.fundCd, repFundCd: f.fundCd, mketDvsn: '02', usdYn: 'N', _csrf: csrf, schNavMode: 'T', schNavTerm: f.term });
+  const p = new URLSearchParams({ gijunYmd: new Date().toISOString().slice(0, 10).replace(/-/g, ''), fundCd: f.fundCd, repFundCd: f.fundCd, mketDvsn: '02', usdYn: 'N', _csrf: csrf, schNavMode: 'T', schNavTerm: 'A' });
   const t = await retry(async () => { const x = await fetch('https://www.funetf.co.kr/api/public/product/view/fundnav?' + p, { headers: { ...UA, Cookie: cookie, Referer: page } }); if (!x.ok) throw new Error('funetf nav ' + x.status); return x.text(); });
   const j = JSON.parse(t); if (!Array.isArray(j) || !j.length) throw new Error('funetf empty ' + f.fundCd);
   return j.map(x => [x.gijunYmd, x.ugijunGa]).sort((a, b) => a[0].localeCompare(b[0]));
@@ -82,10 +99,11 @@ async function main() {
   const ids = [...tdfRows.map(d => d.PDNO), ...EXTRA.map(e => e[0])];
   const S = {}; let next = 0;
   const worker = async () => { while (next < ids.length) { const p = ids[next++]; try { S[p] = await chart(p); } catch (e) { log('WARN chart ' + p + ' ' + e.message); } } };
-  await Promise.all([worker(), worker(), worker()]);
+  await Promise.all(Array.from({ length: 6 }, worker));
   const okIds = ids.filter(p => S[p]); if (okIds.length < ids.length - 3) throw new Error('시계열 실패가 많음: ' + (ids.length - okIds.length));
-  const refId = okIds.slice().sort((a, b) => S[b].d.length - S[a].d.length)[0];
-  const axis = S[refId].d.filter(d => d <= END);
+  const NAVF = {};
+  for (const f of FUNETF) { try { NAVF[f.key] = await funetfNav(f); } catch (e) { log('WARN funetf ' + f.key + ' ' + e.message); } }
+  const axis = [...new Set([...okIds.flatMap(p => S[p].d), ...Object.values(NAVF).flatMap(n => n.map(x => x[0]))])].filter(d => d <= END).sort();
   if (axis[axis.length - 1] !== END) throw new Error('기준일 데이터가 시계열에 없음 ' + END);
   const V = {}, F = {};
   for (const p of okIds) {
@@ -101,7 +119,7 @@ async function main() {
   // 4) FunETF 2개
   for (const f of FUNETF) {
     try {
-      const nav = await funetfNav(f); const m = new Map(nav);
+      const nav = NAVF[f.key]; if (!nav) continue; const m = new Map(nav);
       let base; if (f.base === 'first') { base = nav.find(x => x[0] >= axis[0]); base = base && base[1]; } else base = 10;
       let last = null; const first = nav[0][0];
       const arr = axis.map(d => { if (d < first) return null; if (m.has(d)) last = m.get(d); return last == null ? null : Math.round((f.base === 'first' ? 100 * last / base : last / 10) * 100) / 100; });
