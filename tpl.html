@@ -77,21 +77,22 @@ const vcol=y=>VCOL[Math.min(VINT.indexOf(y),VCOL.length-1)];
 const cutoff=p=>Date.UTC(+NAV.d[NAV.d.length-1].slice(0,4),+NAV.d[NAV.d.length-1].slice(4,6)-1-p,+NAV.d[NAV.d.length-1].slice(6,8))/864e5;
 const perView=p=>typeof p=="string"?(([a,b])=>({v0:+a,v1:+b}))(p.slice(1).split(":")):{v0:Math.max(DMIN,cutoff(p)),v1:DMAX};
 // 보이는 구간의 시작 표본을 0%로 맞춘 누적수익률
-function series(codes,v0,v1,raw){const n=NAV.n.length;let s=0;while(s<n&&NAV.n[s]<v0-1e-9)s++;let e=n-1;while(e>0&&NAV.n[e]>v1+1e-9)e--;
- return codes.map(c=>{const a=NAV.v[c]||[];let bi=-1;for(let i=s;i<=e;i++)if(a[i]!=null){bi=i;break}
-  if(bi<0)return{c,pts:[]};const pts=[];for(let i=bi;i<=e;i++)if(a[i]!=null)pts.push([i,raw?a[i]:(a[i]/a[bi]-1)*100]);return{c,pts}})}
+function series(codes,v0,v1,raw,b0){const n=NAV.n.length;let s=0;while(s<n&&NAV.n[s]<v0-1e-9)s++;let e=n-1;while(e>0&&NAV.n[e]>v1+1e-9)e--;let sb=s;if(b0!=null){sb=0;while(sb<n&&NAV.n[sb]<b0-1e-9)sb++}
+ return codes.map(c=>{const a=NAV.v[c]||[];let bi=-1,fi=-1;for(let i=s;i<=e;i++)if(a[i]!=null){fi=i;break}for(let i=sb;i<n;i++)if(a[i]!=null){bi=i;break}if(b0==null)bi=fi;
+  if(bi<0||fi<0)return{c,pts:[]};const pts=[];for(let i=fi;i<=e;i++)if(a[i]!=null)pts.push([i,raw?a[i]:(a[i]/a[bi]-1)*100]);return{c,pts}})}
 const endRet=(c,p)=>{const V=perView(p);const s=series([c],V.v0,V.v1)[0];return s.pts.length?s.pts[s.pts.length-1][1]:null};
 // ───────── 그래프(휠 확대/축소, 드래그 이동, 더블클릭 초기화) ─────────
-const VIEW={},VPER={},CFG={},CH={};
+const VIEW={},VPER={},CFG={},CH={},BASE={};
+let FIXB=true;try{const f=localStorage.getItem("fixB");if(f!=null)FIXB=f=="1"}catch(e){}
 function niceStep(x){const e=Math.pow(10,Math.floor(Math.log10(x)));const f=x/e;return (f<=1?1:f<=2?2:f<=5?5:10)*e}
-function chartBox(id,cfg,p){CFG[id]=cfg;if(!VIEW[id]||VPER[id]!==p){VIEW[id]=perView(p);VPER[id]=p}
- return `<div class=tog><span class=hint>마우스 휠: 확대/축소 · 드래그: 좌우 이동 · 더블클릭: 초기화 <a data-zr="${id}">초기화</a></span></div><div class=cb id="${id}"></div><div id="lg-${id}"></div>`}
+function chartBox(id,cfg,p){CFG[id]=cfg;if(!VIEW[id]||VPER[id]!==p){VIEW[id]=perView(p);VPER[id]=p}BASE[id]=perView(p).v0;
+ return `<div class=tog><span class=hint>마우스 휠: 확대/축소 · 드래그: 좌우 이동 · 더블클릭: 초기화 <a data-zr="${id}">초기화</a>${cfg.raw?"":`<a data-fix="1" class="${FIXB?"on":""}" title="켜면 확대·이동해도 0%의 기준이 처음 시작일로 유지되고, 끄면 보이는 구간의 시작점이 0%가 됩니다">기준점 고정</a>`}</span></div><div class=cb id="${id}"></div><div id="lg-${id}"></div>`}
 function draw(id){
  const c=CFG[id],box=document.getElementById(id);if(!c||!box)return;const V=VIEW[id],items=c.items();
- const S=series(items.map(x=>x.c),V.v0,V.v1,c.raw),fy=c.raw?(y=>Math.round(y).toLocaleString()):(y=>Math.round(y*100)/100+"%");
- const W=900,H=380,L=52,Rm=14,T=12,B=26;let mn=0,mx=0;
+ const FX=FIXB&&!c.raw,S=series(items.map(x=>x.c),V.v0,V.v1,c.raw,FX?BASE[id]:null),fy=c.raw?(y=>Math.round(y).toLocaleString()):(y=>Math.round(y*100)/100+"%");
+ const W=900,H=380,L=52,Rm=14,T=12,B=26;let mn=FX?1e9:0,mx=FX?-1e9:0;
  S.forEach((s,i)=>{if(items[i].off)return;s.pts.forEach(q=>{mn=Math.min(mn,q[1]);mx=Math.max(mx,q[1])})});
- if(mx-mn<0.5){mx=mn+0.5}
+ if(mx<mn){mn=0;mx=1}if(FX){const pd=(mx-mn)*.06;mn-=pd;mx+=pd}if(mx-mn<0.5){mx=mn+0.5}
  const st=niceStep((mx-mn)/5),lo=Math.floor(mn/st+1e-9)*st,hi=Math.ceil(mx/st-1e-9)*st;
  const X=d=>L+(d-V.v0)/(V.v1-V.v0)*(W-L-Rm),Y=y=>T+(hi-y)/(hi-lo)*(H-T-B);
  let g="";for(let y=lo;y<=hi+1e-9;y+=st)g+=`<line x1="${L}" x2="${W-Rm}" y1="${Y(y)}" y2="${Y(y)}" stroke="${Math.abs(y)<1e-9?"#555":"#e3e5ee"}"/><text x="${L-6}" y="${Y(y)+4}" font-size="11" text-anchor="end" fill="#666">${fy(y)}</text>`;
@@ -240,9 +241,12 @@ function variable(){
  return h+`<p class=note>총 ${rows.length}개. 열 제목을 누르면 정렬됩니다. 맨 오른쪽 5개 열은 구간과 상관없이 현재(${dstr(DMAX)}) 기준 기간수익률입니다. 같은 이름의 펀드도 상품 버전(1호·2호·3호)에 따라 별개 펀드입니다. 기준가는 특별계정(펀드) 기준가로 보험 사업비·위험보험료·세금은 반영되지 않은 값입니다.</p>`;
 }
 // ───────── 조합 시뮬레이터(일시금 + 적립식, 조합 여러 개) ─────────
-let PORTS=[{id:1,name:"조합 1",w:{},on:true}],selP=1,pSeq=1,sStart="",sReb="m",sInit="1000",sMon="",sMths="";
-try{const s=JSON.parse(localStorage.getItem("simW3")||"null");if(s&&s.ports&&s.ports.length){PORTS=s.ports;selP=s.sel||PORTS[0].id;pSeq=s.seq||PORTS.length;sStart=s.s||"";sReb=s.r||"m";sInit=s.i??"1000";sMon=s.m||"";sMths=s.n||""}}catch(e){}
-const saveSim=()=>{try{localStorage.setItem("simW3",JSON.stringify({ports:PORTS,sel:selP,seq:pSeq,s:sStart,r:sReb,i:sInit,m:sMon,n:sMths}))}catch(e){}};
+let PORTS=[{id:1,name:"조합 1",w:{},on:true}],selP=1,pSeq=1,sStart="",sReb="m",sInit="1000",sMon="",sMths="",sComp=false;
+const DEMO=[["채권30 · 미국70",{"M:U005":30,"M:A031":70}],["채권30 · 가치30 · 미국40",{"M:U005":30,"M:A028":30,"M:A031":40}],["채권30 · 중국20 · 가치20 · 미국30",{"M:U005":30,"M:A022":20,"M:A028":20,"M:A031":30}]];
+function loadDemo(){PORTS=DEMO.map(([name,w],i)=>({id:i+1,name,w:Object.fromEntries(Object.entries(w).filter(([c])=>DV[c])),on:true}));selP=1;pSeq=PORTS.length}
+try{const s=JSON.parse(localStorage.getItem("simW3")||"null");if(s&&s.ports&&s.ports.length){PORTS=s.ports;selP=s.sel||PORTS[0].id;pSeq=s.seq||PORTS.length;sStart=s.s||"";sReb=s.r||"m";sInit=s.i??"1000";sMon=s.m||"";sMths=s.n||"";sComp=!!s.c}}catch(e){}
+if(!PORTS.some(p=>Object.keys(p.w).length))loadDemo();
+const saveSim=()=>{try{localStorage.setItem("simW3",JSON.stringify({ports:PORTS,sel:selP,seq:pSeq,s:sStart,r:sReb,i:sInit,m:sMon,n:sMths,c:sComp}))}catch(e){}};
 const PCOL=["#d62728","#1f77b4","#2ca02c","#ff7f0e","#9467bd","#8c564b"];
 const pcol=p=>PCOL[PORTS.indexOf(p)%PCOL.length];
 const curP=()=>PORTS.find(p=>p.id==selP)||PORTS[0];
@@ -275,28 +279,30 @@ function simCalc(){
  const first=Math.max(...codes.map(idx0));let s=first;if(sStart)s=Math.max(s,iAfter(dayN(sStart)));
  const e=NAV.n.length-1;
  const res=act.map(p=>{const es=Object.entries(p.w).filter(([c,w])=>w>0&&DV[c]),sum=es.reduce((t,[,w])=>t+w,0);return {p,r:runDca(es.map(([c,w])=>[c,w/sum]),s,init,mon,mths)}});
- return {res,s,e,first,init,mon,mths};
+ const sp=curP(),comps=sComp&&act.includes(sp)?Object.entries(sp.w).filter(([c,w])=>w>0&&DV[c]).map(([c,w])=>({c,w,r:runDca([[c,1]],s,init,mon,mths)})):[];
+ return {res,s,e,first,init,mon,mths,comps,sp};
 }
 function simBody(){
  const R=simCalc();
  if(!R)return `<p class=note>조합에 펀드를 추가하고 비중을 넣으면 그래프가 나옵니다. (조합은 여러 개 만들어 비교할 수 있습니다)</p>`;
- PORTS.forEach(p=>{delete NAV.v["SIM"+p.id];delete NAV.v["SIMV"+p.id]});
+ PORTS.forEach(p=>{delete NAV.v["SIM"+p.id];delete NAV.v["SIMV"+p.id]});for(const k in NAV.v)if(k.startsWith("SIMF:"))delete NAV.v[k];
+ R.comps.forEach(x=>{NAV.v["SIMF:"+x.c]=x.r.ratio});
  R.res.forEach(x=>{NAV.v["SIM"+x.p.id]=x.r.ratio;NAV.v["SIMV"+x.p.id]=x.r.V});NAV.v.SIMC=R.res[0].r.C;
  const dca=R.mon>0,key="x"+NAV.n[R.s]+":"+DMAX;
  const shown=PORTS.filter(p=>Object.keys(p.w).some(c=>p.w[c]>0&&DV[c]));
- const items=()=>shown.map(p=>({c:"SIM"+p.id,label:p.name,color:pcol(p),bold:true,off:!p.on}));
+ const items=()=>[...shown.map(p=>({c:"SIM"+p.id,label:p.name,color:pcol(p),bold:true,off:!p.on})),...R.comps.map((x,k)=>({c:"SIMF:"+x.c,label:`└ ${DV[x.c][1]} (단독)`,color:PAL[(k+7)%PAL.length],dash:true,off:HID.has("SIMF:"+x.c)}))];
  let h=`<p class=note>비교 기간: ${date(NAV.d[R.s])} ~ ${date(NAV.d[R.e])} (켜 둔 조합에 들어 있는 펀드 중 가장 늦게 시작한 펀드의 기준가 시작일 ${date(NAV.d[R.first])} 이후) · ${R.init?`초기 ${won(R.init)}만원`:""}${R.init&&dca?" + ":""}${dca?`매월 ${won(R.mon)}만원${R.mths?" × "+R.mths+"회":" (끝까지)"}`:""}</p>`;
- h+=`<div class=card>${chartBox("cbs",{items},key)}<div class=note>납입한 원금 대비 평가손익률(%). 범례나 위의 ● 를 눌러 조합별로 켜고 끌 수 있습니다. 마우스 휠로 확대/축소, 드래그로 이동.</div></div>`;
+ h+=`<div class=card>${chartBox("cbs",{items},key)}<div class=note>납입한 원금 대비 평가손익률(%). 범례나 위의 ● 를 눌러 조합별로 켜고 끌 수 있습니다.${R.comps.length?" 점선 = 선택한 조합의 구성 펀드를 같은 납입 조건으로 그 펀드에만 투자한 경우.":""} 마우스 휠로 확대/축소, 드래그로 이동.</div></div>`;
  if(dca)h+=`<div class=card>${chartBox("cbw",{items:()=>[...shown.map(p=>({c:"SIMV"+p.id,label:p.name+" 평가금액",color:pcol(p),bold:true,off:!p.on})),{c:"SIMC",label:"누적 납입원금",color:"#555",dash:true}],raw:true},key)}<div class=note>평가금액과 누적 납입원금(만원 단위). 점선 = 납입원금.</div></div>`;
- h+=`<div class=wrap><table><tr><th>조합<th>총 납입(만원)<th>평가금액(만원)<th>수익률(원금 대비)<th>평가손익(만원)<th>연환산(IRR)<th>원금 대비 최저</tr>`+R.res.map(x=>{const t=dcaStats(x.r,R.e,R.s);return t?`<tr><td class=l><i style="display:inline-block;width:10px;height:10px;border-radius:50%;background:${pcol(x.p)};margin-right:6px"></i><b>${esc(x.p.name)}</b><td>${won(t.C)}<td>${won(t.V)}<td>${pct(t.ret)}<td>${t.pl>=0?"+":""}${won(t.pl)}<td>${t.irr==null?"-":pct(t.irr)}<td>${pct(t.mn)}</tr>`:""}).join("")+`</table></div>`;
+ h+=`<div class=wrap><table><tr><th>조합<th>총 납입(만원)<th>평가금액(만원)<th>수익률(원금 대비)<th>평가손익(만원)<th>연환산(IRR)<th>원금 대비 최저</tr>`+R.res.map(x=>{const t=dcaStats(x.r,R.e,R.s);return t?`<tr><td class=l><i style="display:inline-block;width:10px;height:10px;border-radius:50%;background:${pcol(x.p)};margin-right:6px"></i><b>${esc(x.p.name)}</b><td>${won(t.C)}<td>${won(t.V)}<td>${pct(t.ret)}<td>${t.pl>=0?"+":""}${won(t.pl)}<td>${t.irr==null?"-":pct(t.irr)}<td>${pct(t.mn)}</tr>`+(x.p===R.sp?R.comps.map(y=>{const u=dcaStats(y.r,R.e,R.s);return u?`<tr style="color:#666"><td class=l style="padding-left:28px">└ ${esc(DV[y.c][1])} 100%<td>${won(u.C)}<td>${won(u.V)}<td>${pct(u.ret)}<td>${u.pl>=0?"+":""}${won(u.pl)}<td>${u.irr==null?"-":pct(u.irr)}<td>${pct(u.mn)}</tr>`:""}).join(""):""):""}).join("")+`</table></div>`;
  return h+`<p class=note>리밸런싱: ${REB[sReb]} · 연환산(IRR)은 납입 시점별 현금흐름 기준이며 1년 미만이면 표시하지 않습니다 · 특별계정 기준가 기준(보험 사업비·위험보험료·세금 미반영) · 과거 수익률은 미래 수익을 보장하지 않습니다.</p>`;
 }
-function simChips(){return `<div class=tog><b>내 조합</b>`+PORTS.map(p=>`<a class="${p.id==selP?"on":""}" data-psel="${p.id}" style="${p.on?"":"opacity:.55"}"><span data-pon="${p.id}" title="그래프 켜기/끄기" style="display:inline-block;width:10px;height:10px;border-radius:50%;margin-right:6px;border:2px solid ${pcol(p)};background:${p.on?pcol(p):"transparent"}"></span>${esc(p.name)}</a>`).join("")+(PORTS.length<6?`<a data-padd="1">+ 조합 추가</a>`:"")+`<span class=note>● 를 눌러 그래프 켜기/끄기 · 이름을 눌러 편집</span></div>`}
+function simChips(){return `<div class=tog><b>내 조합</b>`+PORTS.map(p=>`<a class="${p.id==selP?"on":""}" data-psel="${p.id}" style="${p.on?"":"opacity:.55"}"><span data-pon="${p.id}" title="그래프 켜기/끄기" style="display:inline-block;width:10px;height:10px;border-radius:50%;margin-right:6px;border:2px solid ${pcol(p)};background:${p.on?pcol(p):"transparent"}"></span>${esc(p.name)}</a>`).join("")+(PORTS.length<6?`<a data-padd="1">+ 조합 추가</a>`:"")+`<a data-pdemo="1">예시 조합으로 되돌리기</a>`+`<span class=note>● 를 눌러 그래프 켜기/끄기 · 이름을 눌러 편집</span></div>`}
 function simSum(){const s=$("#simsum");if(!s)return;const t=wsum(curP());s.innerHTML=`합계 <b style="color:${Math.abs(t-100)<1e-6?"#2e7d32":"#c62828"}">${Math.round(t*10)/10}%</b>`}
 function simEdit(){
  const p=curP(),ex=new Set(Object.keys(p.w));
  const opts=VGRP.slice(1).map(g=>{const rs=R_VAR.filter(r=>r[2]==g&&!ex.has(r[0])&&existedAt(r,sStart));return rs.length?`<optgroup label="${g}">`+rs.map(r=>`<option value="${r[0]}">${esc(r[1])}</option>`).join("")+`</optgroup>`:""}).join("");
- return `<div class=card><div class=tog><b>이름</b><input id=pname value="${esc(p.name)}" style="padding:4px;width:150px"><a data-peq="1">균등 배분</a><a data-pnorm="1">합계 100%로 맞추기</a><a data-pdel="1">이 조합 삭제</a><span id=simsum style="margin-left:auto"></span></div>`+
+ return `<div class=card><div class=tog><b>이름</b><input id=pname value="${esc(p.name)}" style="padding:4px;width:150px"><a data-peq="1">균등 배분</a><a data-pnorm="1">합계 100%로 맞추기</a><a data-pdel="1">이 조합 삭제</a><a data-pcomp="1" class="${sComp?"on":""}">구성 펀드 선 보기</a><span id=simsum style="margin-left:auto"></span></div>`+
   (Object.keys(p.w).length?Object.entries(p.w).map(([c,w])=>`<div class=tog style="margin:3px 0"><span style="min-width:240px">${esc(DV[c][1])}</span><input type=number data-w="${c}" value="${w}" min=0 max=100 step=5 style="width:80px;padding:4px;text-align:right"> % <a data-prm="${c}" style="padding:2px 9px">✕</a></div>`).join(""):`<p class=note>아래에서 펀드를 추가하세요.</p>`)+
   `<div class=tog style="margin-top:8px"><select id=spadd style="padding:6px;min-width:260px"><option value="">+ 펀드 추가…</option>${opts}</select></div></div>`}
 function simRefresh(){$("#pchips").innerHTML=simChips();$("#pedit").innerHTML=simEdit();simSum();simUpdate()}
@@ -326,7 +332,7 @@ function render(){
 }
 document.addEventListener("click",e=>{
  const g=k=>e.target.closest("["+k+"]");
- const r=g("data-i"),t=g("data-t"),y=g("data-y"),s=g("data-s"),tpp=g("data-tp"),dpp=g("data-dp"),x=g("data-x"),zr=g("data-zr"),cs=g("data-co"),fm=g("data-fam"),vs=g("data-vs"),va=g("data-vall"),vg=g("data-vg"),vp=g("data-vp"),vs2=g("data-vs2"),vr=g("data-vreset"),pon=g("data-pon"),psel=g("data-psel"),padd=g("data-padd"),pdel=g("data-pdel"),pnorm=g("data-pnorm"),peq=g("data-peq"),prm=g("data-prm");
+ const r=g("data-i"),t=g("data-t"),y=g("data-y"),s=g("data-s"),tpp=g("data-tp"),dpp=g("data-dp"),x=g("data-x"),zr=g("data-zr"),cs=g("data-co"),fm=g("data-fam"),vs=g("data-vs"),va=g("data-vall"),vg=g("data-vg"),vp=g("data-vp"),vs2=g("data-vs2"),vr=g("data-vreset"),fx=g("data-fix"),pcm=g("data-pcomp"),pdm=g("data-pdemo"),pon=g("data-pon"),psel=g("data-psel"),padd=g("data-padd"),pdel=g("data-pdel"),pnorm=g("data-pnorm"),peq=g("data-peq"),prm=g("data-prm");
  if(vg){vgf=vg.dataset.vg;render()}
  else if(vr){vs="";ve="";vat="";render()}
  else if(vp){vtp=+vp.dataset.vp;ve="";render()}
@@ -337,10 +343,13 @@ document.addEventListener("click",e=>{
  else if(pdel){if(PORTS.length>1){PORTS=PORTS.filter(p=>p.id!=selP);selP=PORTS[0].id}else curP().w={};saveSim();simRefresh()}
  else if(pnorm){const p=curP(),s=wsum(p);if(s>0)for(const c in p.w)p.w[c]=Math.round(p.w[c]/s*1000)/10;saveSim();simRefresh()}
  else if(peq){const p=curP(),c=Object.keys(p.w);if(c.length)c.forEach(k=>p.w[k]=Math.round(1000/c.length)/10);saveSim();simRefresh()}
+ else if(pcm){sComp=!sComp;saveSim();simRefresh()}
+ else if(pdm){loadDemo();saveSim();simRefresh()}
  else if(prm){delete curP().w[prm.dataset.prm];saveSim();simRefresh()}
  else if(y){vin=+y.dataset.y;render()}
  else if(tpp){tp=+tpp.dataset.tp;render()}
  else if(dpp){dp=+dpp.dataset.dp;render()}
+ else if(fx){FIXB=!FIXB;try{localStorage.setItem("fixB",FIXB?"1":"0")}catch(e){}render()}
  else if(zr){VIEW[zr.dataset.zr]=perView(VPER[zr.dataset.zr]);draw(zr.dataset.zr)}
  else if(x&&/^SIMV?d+$/.test(x.dataset.x.split("|")[1])){const p=PORTS.find(p=>p.id==+x.dataset.x.split("|")[1].replace("SIMV","").replace("SIM",""));if(p){p.on=!p.on;saveSim();$("#pchips").innerHTML=simChips();simUpdate()}}
  else if(x){const c=x.dataset.x.split("|")[1];HID.has(c)?HID.delete(c):HID.add(c);draw(x.dataset.x.split("|")[0])}
