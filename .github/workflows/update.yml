@@ -21,5 +21,5 @@ jobs:
       - run: |
           git config user.name github-actions
           git config user.email github-actions@users.noreply.github.com
-          git add docs holdings.json
+          git add docs holdings.json history.json
           git diff --cached --quiet || (git commit -m "data update" && git push)

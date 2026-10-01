@@ -16,6 +16,7 @@ const ITEMS = CFG.라인업.flatMap(f => f.종목);
 const EXTRA = ITEMS.filter(i => i.한투검색어).map(i => [i.코드, i.한투검색어]);   // 한투 검색으로 찾는 비TDF 펀드
 const FUNETF = ITEMS.filter(i => i.FunETF코드).map(i => ({ key: i.코드, fundCd: i.FunETF코드, term: String(i.기간), base: i.기준, co: i.운용사, fee: i.총보수, risk: i.위험등급, setup: i.설정일, aum: i.설정액억, name: i.정식명 }));
 const HCACHE = path.join(ROOT, 'holdings.json');   // 보유종목 마지막 성공값(조회 실패 시 대체)
+const HISTF = path.join(ROOT, 'history.json');   // 클래스 출시 이전 구간(FunETF 종류A 기준가) 캐시: 과거는 바뀌지 않으므로 한 번만 받음
 const readJson = (f, d) => { try { return JSON.parse(fs.readFileSync(f, 'utf8')); } catch (e) { return d; } };
 
 const log = m => { const s = `[${new Date().toISOString()}] ${m}`; console.log(s); try { fs.mkdirSync(path.dirname(LOG), { recursive: true }); fs.appendFileSync(LOG, s + '\n'); } catch (e) {} };
@@ -67,6 +68,13 @@ const rowBase = d => [d.PDNO, d.PRDT_NAME, co(d), r2(d.TOT_PAY_RT), r2(d.RLZT_ER
 const cutoff = (end, p) => { const dt = new Date(Date.UTC(+end.slice(0, 4), +end.slice(4, 6) - 1 - p, +end.slice(6, 8))); return dt.toISOString().slice(0, 10).replace(/-/g, ''); };
 function periodRet(axis, vals, end, p) { const c = cutoff(end, p); let s = axis.findIndex(d => d >= c); if (s < 0) return null; if (vals[s] == null) return null; const e = axis.indexOf(end); if (e < 0 || vals[e] == null) return null; return (vals[e] / vals[s] - 1) * 100; }
 
+async function histNav(code, fundCd) {
+  const h = readJson(HISTF, {});
+  if (h[fundCd] && h[fundCd].length > 100) return h[fundCd];
+  const nav = await funetfNav({ fundCd, term: 'A' }); await sleep(3000);
+  h[fundCd] = nav; fs.writeFileSync(HISTF, JSON.stringify(h)); log('과거이력 저장 ' + code + ' ' + fundCd + ' ' + nav[0][0] + '~');
+  return nav;
+}
 async function funetfNav(f) {
   const page = `https://www.funetf.co.kr/product/fund/view/${f.fundCd}`;
   const r = await retry(async () => { const x = await fetch(page, { headers: UA }); if (!x.ok) throw new Error('funetf page ' + x.status); return x; });
@@ -101,15 +109,23 @@ async function main() {
   const worker = async () => { while (next < ids.length) { const p = ids[next++]; try { S[p] = await chart(p); } catch (e) { log('WARN chart ' + p + ' ' + e.message); } } };
   await Promise.all(Array.from({ length: 6 }, worker));
   const okIds = ids.filter(p => S[p]); if (okIds.length < ids.length - 3) throw new Error('시계열 실패가 많음: ' + (ids.length - okIds.length));
+  const NAVH = {};
+  for (const i of ITEMS) if (i.과거FunETF코드 && okIds.includes(i.코드)) NAVH[i.코드] = await histNav(i.코드, i.과거FunETF코드);
   const NAVF = {};
   for (const f of FUNETF) { try { NAVF[f.key] = await funetfNav(f); } catch (e) { log('WARN funetf ' + f.key + ' ' + e.message); } }
-  const axis = [...new Set([...okIds.flatMap(p => S[p].d), ...Object.values(NAVF).flatMap(n => n.map(x => x[0]))])].filter(d => d <= END).sort();
+  const axis = [...new Set([...okIds.flatMap(p => S[p].d), ...Object.values(NAVF).flatMap(n => n.map(x => x[0])), ...Object.values(NAVH).flatMap(n => n.map(x => x[0]))])].filter(d => d <= END).sort();
   if (axis[axis.length - 1] !== END) throw new Error('기준일 데이터가 시계열에 없음 ' + END);
   const V = {}, F = {};
   for (const p of okIds) {
     const s = S[p], m = new Map(); s.d.forEach((d, i) => { const v = parseFloat(s.c[i] || s.b[i]); if (!isNaN(v)) m.set(d, v); });
     const first = s.d[0]; let last = null;
     const arr = axis.map(d => { if (d < first) return null; if (m.has(d)) last = m.get(d); return last; });
+    if (NAVH[p]) {   // 클래스 출시 이전: 종류A 기준가를 첫 거래일 값에 맞춰 이어 붙임
+      const hm = new Map(NAVH[p]), i0 = arr.findIndex(x => x != null), hv = hm.get(axis[i0]);
+      if (!hv) throw new Error('접합일 과거이력 없음 ' + p + ' ' + axis[i0]);
+      const k = arr[i0] / hv; let hl = null; const hf = NAVH[p][0][0];
+      for (let i = 0; i < i0; i++) { const d = axis[i]; if (d < hf) continue; if (hm.has(d)) hl = hm.get(d); if (hl != null) arr[i] = hl * k; }
+    }
     F[p] = arr; V[p] = arr.map(x => x == null ? '' : String(Math.round(x * 10) / 10)).join(',');
   }
   // 3) 행
@@ -149,7 +165,7 @@ async function main() {
   const kst = new Date(Date.now() + 9 * 3600e3).toISOString().slice(0, 16).replace('T', ' ');
   const LINEUP = CFG.라인업.map(f => ({ g: f.묶음, type: f.유형, name: f.펀드명, feat: f.특징, etc: f.비고, codes: f.종목.map(i => i.코드) }));
   const LB = Object.fromEntries(ITEMS.filter(i => i.짧은이름).map(i => [i.코드, i.짧은이름]));
-  const NOTE = Object.fromEntries(ITEMS.filter(i => i.메모).map(i => [i.코드, i.메모]));
+  const NOTE = Object.fromEntries(ITEMS.filter(i => i.메모 || i.과거FunETF코드).map(i => [i.코드, [i.메모, i.과거FunETF코드 && '판매 클래스 출시 이전 구간(설정일~)은 FunETF 일반 클래스(종류A) 기준가를 접합일 값에 맞춰 이어 붙인 것으로, 클래스 간 보수 차이만큼 오차가 있을 수 있음.'].filter(Boolean).join(' ')]));
   const HOLD_STATIC = Object.fromEntries(ITEMS.filter(i => i.보유종목).map(i => [i.코드, i.보유종목]));
   const data = `const LINEUP=${JSON.stringify(LINEUP)};
 const LB=${JSON.stringify(LB)};
