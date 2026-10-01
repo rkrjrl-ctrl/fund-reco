@@ -106,8 +106,9 @@ async function main() {
   // 2) 가격 시계열
   const ids = [...tdfRows.map(d => d.PDNO), ...EXTRA.map(e => e[0])];
   const S = {}; let next = 0;
-  const worker = async () => { while (next < ids.length) { const p = ids[next++]; try { S[p] = await chart(p); } catch (e) { log('WARN chart ' + p + ' ' + e.message); } } };
+  const worker = async () => { while (next < ids.length) { const p = ids[next++]; try { S[p] = await retry(() => chart(p), 6); } catch (e) { log('WARN chart ' + p + ' ' + e.message); } } };
   await Promise.all(Array.from({ length: 6 }, worker));
+  const lost = EXTRA.map(e => e[0]).filter(c => !S[c]); if (lost.length) throw new Error('라인업 펀드 시계열 실패: ' + lost.join(','));
   const okIds = ids.filter(p => S[p]); if (okIds.length < ids.length - 3) throw new Error('시계열 실패가 많음: ' + (ids.length - okIds.length));
   const NAVH = {};
   for (const i of ITEMS) if (i.과거FunETF코드 && okIds.includes(i.코드)) NAVH[i.코드] = await histNav(i.코드, i.과거FunETF코드);
