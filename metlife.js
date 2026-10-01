@@ -5,9 +5,7 @@
 const fs = require('fs');
 const B = 'https://brand.metlife.co.kr/pn/paReal/';
 const UA = { 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)' };
-// 과거 상품 버전의 공시 번호(펀드 구성이 시기마다 달라서 모두 합침). 현재 판매 버전은 목록에서 이름으로 찾는다.
-const OLD_DONGHAENG = ['8185', '5638'];
-const SILVER = ['5632', '5631', '5630', '5629', '5628', '5627', '5626'];
+// 상품 버전(공시 번호)마다 선택 가능한 펀드가 다르다: 목록 화면에서 버전·판매기간을 읽고, 버전별 펀드 목록으로 '가입 시점별 선택 가능 펀드(ERAS)'를 만든다.
 
 // 이름으로 유형 분류
 const group = n => /TDF/.test(n) ? 'TDF' : /MMF|채권|하이일드/.test(n) ? '채권형' : /포트폴리오|멀티인컴|자산배분/.test(n) ? '혼합형' : /골드/.test(n) ? '기타' : '주식형';
@@ -23,35 +21,49 @@ module.exports = async function metlife({ cacheFile, log, retry, sleep, today })
   let cache = {}; try { cache = JSON.parse(fs.readFileSync(cacheFile, 'utf8')); } catch (e) {}
   const get = async (url, hdr) => retry(async () => { const r = await fetch(url, { headers: { ...UA, ...hdr } }); if (!r.ok) throw new Error(url.slice(0, 80) + ' ' + r.status); return r; });
 
-  // 1) 현재 판매 중인 동행 / 동행 Plus 의 공시 번호
-  const list = await (await get(B + 'retrieveVrinsPaBprcPcndList.do?scd=Y&submitType=tab&pageIndex=1')).text();
-  const cur = {};
-  for (const m of list.matchAll(/<td[^>]*>\s*([^<]{3,70}?)\s*<\/td>\s*<td[^>]*>\s*[\d-]+ ~ [\d-]*\s*<\/td>[\s\S]*?standardPriceDetailView\('(\d+)'\)/g)) {
-    if (/변액연금보험 동행 Plus/.test(m[1])) cur.plus = m[2]; else if (/변액연금보험 동행$/.test(m[1].trim())) cur.dong = m[2];
+  // 1) 상품 버전 목록(판매 중 + 판매 중지, 동행·동행 Plus·실버플랜만)
+  const prodOf = n => /변액연금보험 동행 Plus/.test(n) ? '동행Plus' : /변액연금보험 동행$/.test(n.trim()) ? '동행' : /실버플랜/.test(n) ? '실버플랜' : null;
+  const versions = [];
+  for (const scd of ['Y', 'N']) {
+    for (let pg = 1; pg <= 30; pg++) {
+      const h = await (await get(B + `retrieveVrinsPaBprcPcndList.do?scd=${scd}&submitType=paging&pageIndex=${pg}`)).text();
+      const rows = [...h.matchAll(/<td[^>]*>\s*([^<]{3,70}?)\s*<\/td>\s*<td[^>]*>\s*(\d{4}-\d\d-\d\d) ~ (\d{4}-\d\d-\d\d)?\s*<\/td>[\s\S]*?standardPriceDetailView\('(\d+)'\)/g)];
+      if (!rows.length) break;
+      for (const r of rows) { const p = prodOf(r[1]); if (p) versions.push({ id: r[4], prod: p, from: ymd(r[2]), to: r[3] ? ymd(r[3]) : '' }); }
+      await sleep(100);
+    }
   }
-  if (!cur.dong || !cur.plus) throw new Error('메트라이프 현재 동행/동행 Plus 공시 번호를 찾지 못함');
+  if (!versions.some(v => v.prod === '동행' && !v.to) || !versions.some(v => v.prod === '동행Plus' && !v.to)) throw new Error('메트라이프 현재 동행/동행 Plus 판매 버전을 찾지 못함');
+  const cur = { dong: versions.find(v => v.prod === '동행' && !v.to).id, plus: versions.find(v => v.prod === '동행Plus' && !v.to).id };
 
-  // 2) 상품별 선택 가능 펀드
-  const lists = {};
+  // 2) 버전별 선택 가능 펀드(과거 버전은 바뀌지 않으므로 캐시, 판매 중인 버전만 매번 다시 받음)
+  cache._lists = cache._lists || {};
   let sess = null, allNames = [];
-  for (const [key, id] of [['현재동행', cur.dong], ['현재동행Plus', cur.plus], ...OLD_DONGHAENG.map(i => ['과거동행', i]), ...SILVER.map(i => ['실버플랜', i])]) {
-    const r = await get(B + `retrieveVrinsPaBprcPcndSearch.do?insProdSeq=${id}&submitType=page`);
-    if (!sess) sess = { cookie: r.headers.getSetCookie().map(c => c.split(';')[0]).join('; '), id };
+  const FN = {};   // code -> name
+  for (const v of versions) {
+    const r = await get(B + `retrieveVrinsPaBprcPcndSearch.do?insProdSeq=${v.id}&submitType=page`);
+    if (!sess) sess = { cookie: r.headers.getSetCookie().map(c => c.split(';')[0]).join('; '), id: v.id };
     const h = await r.text(); if (!allNames.length) allNames = names(h);
-    const f = fundsOf(h); if (!f.length) throw new Error('메트라이프 펀드 목록 비어 있음 ' + id);
-    (lists[key] = lists[key] || []).push(...f); await sleep(150);
+    if (v.to && cache._lists[v.id]) { v.f = cache._lists[v.id]; }
+    else { const f = fundsOf(h); if (!f.length) throw new Error('메트라이프 펀드 목록 비어 있음 ' + v.id); v.f = f; if (v.to) cache._lists[v.id] = f; }
+    v.f.forEach(([c, n]) => { FN[c] = n; }); await sleep(120);
   }
-  const FN = {};   // code -> {name, flags:Set}
-  for (const [key, arr] of Object.entries(lists)) for (const [c, n] of arr) { (FN[c] = FN[c] || { name: n, flags: new Set() }).flags.add(key); FN[c].name = n; }
+  // 같은 상품에서 펀드 구성이 같은 연속 버전은 하나로 합침
+  const ERAS = [];
+  for (const p of ['동행', '동행Plus', '실버플랜']) {
+    const vs = versions.filter(v => v.prod === p).sort((a, b) => a.from.localeCompare(b.from));
+    for (const v of vs) { const cs = v.f.map(x => x[0]).sort(), k = cs.join(','), last = ERAS.filter(e => e[0] === p).pop(); if (last && last[3].join(',') === k) last[2] = v.to; else ERAS.push([p, v.from, v.to, cs]); }
+  }
+  const flagOf = c => { const f = new Set(); for (const [p, , to, cs] of ERAS) if (cs.includes(c)) { if (p === '실버플랜') f.add('실버플랜'); else f.add(to ? '과거동행' : p === '동행' ? '현재동행' : '현재동행Plus'); } return [...f]; };
   const codes = Object.keys(FN).sort();
-  log(`메트라이프 펀드 ${codes.length}개`);
+  log(`메트라이프 펀드 ${codes.length}개, 가입 시점 구간 ${ERAS.length}개`);
 
   // 3) 기준가 수집(캐시 이어받기)
   let hdr = { Cookie: sess.cookie, Referer: B + 'retrieveVrinsPaBprcPcndSearch.do' }, renewing = null, gen = 0;
   const renew = async g => { if (g !== gen) return; if (!renewing) renewing = (async () => { const r = await fetch(B + `retrieveVrinsPaBprcPcndSearch.do?insProdSeq=${sess.id}&submitType=page`, { headers: UA }); hdr = { ...hdr, Cookie: r.headers.getSetCookie().map(c => c.split(';')[0]).join('; ') }; await r.text(); gen++; renewing = null; })(); await renewing; };
   const fetchRange = async (code, st, ed) => {
     const q = new URLSearchParams(); q.append('insuType', code); allNames.forEach(n => q.append('hdFndNm', n));
-    q.set('stDate', st); q.set('edDate', ed); q.set('hdAFndList', code); q.set('hdAFndNmList', FN[code].name); q.set('insProdSeq', sess.id); q.set('submitType', 'page');
+    q.set('stDate', st); q.set('edDate', ed); q.set('hdAFndList', code); q.set('hdAFndNmList', FN[code]); q.set('insProdSeq', sess.id); q.set('submitType', 'page');
     let h = '';
     for (let k = 0; k < 4; k++) {   // 세션이 만료되면(오류 화면) 새 세션으로 재시도
       const g = gen; h = await (await get(B + 'retrieveVrinsPaBprcPcndDtl.do?' + q, hdr)).text();
@@ -64,7 +76,7 @@ module.exports = async function metlife({ cacheFile, log, retry, sleep, today })
   let next = 0, fails = [];
   const worker = async () => {
     while (next < codes.length) {
-      const c = codes[next++]; const e = cache[c] || (cache[c] = { n: FN[c].name, d: [], v: [] }); e.fl = [...FN[c].flags];
+      const c = codes[next++]; const e = cache[c] || (cache[c] = { n: FN[c], d: [], v: [] }); e.fl = flagOf(c);
       for (let attempt = 0; attempt < 3; attempt++) try {
         let st = e.d.length ? addDays(e.d[e.d.length - 1], -7) : '20000101';   // 최근 7일은 다시 받아 덮어씀
         let full = false;
@@ -78,7 +90,7 @@ module.exports = async function metlife({ cacheFile, log, retry, sleep, today })
           st = addDays(rows[rows.length - 1][0], 1);
         }
         if (e.d.length < 5) throw new Error('데이터 없음');
-        if (e.d[e.d.length - 1] < addDays(today, -10) && !/미국주식형 2호/.test(FN[c].name)) throw new Error('최근 데이터가 없음 ' + e.d[e.d.length - 1]);
+        if (e.d[e.d.length - 1] < addDays(today, -10) && !/미국주식형 2호/.test(FN[c])) throw new Error('최근 데이터가 없음 ' + e.d[e.d.length - 1]);
         fails = fails.filter(x => x !== c); break;
       } catch (err) { if (!fails.includes(c)) fails.push(c); log('WARN 메트라이프 ' + c + ' ' + err.message + ' (시도 ' + (attempt + 1) + ')'); await renew(gen); await sleep(1000); }
       await sleep(100);
@@ -87,9 +99,10 @@ module.exports = async function metlife({ cacheFile, log, retry, sleep, today })
   await Promise.all(Array.from({ length: 3 }, worker));
   const bad = fails.filter(c => !(cache[c] && cache[c].d.length > 5));
   if (bad.length) throw new Error('메트라이프 기준가 수집 실패: ' + bad.join(','));
+  cache._eras = ERAS;
   const tmp = cacheFile + '.tmp'; fs.writeFileSync(tmp, JSON.stringify(cache)); fs.renameSync(tmp, cacheFile);
 
-  const out = codes.map(c => ({ code: c, name: FN[c].name, group: group(FN[c].name), flags: [...FN[c].flags], d: cache[c].d, v: cache[c].v }));
-  return { funds: out, cur };
+  const out = codes.map(c => ({ code: c, name: FN[c], group: group(FN[c]), flags: flagOf(c), d: cache[c].d, v: cache[c].v }));
+  return { funds: out, cur, eras: ERAS };
 };
 module.exports.group = group;
