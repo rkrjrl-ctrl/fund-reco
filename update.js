@@ -10,15 +10,13 @@ const KIS = 'https://securities.koreainvestment.com';
 const UA = { 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)' };
 const FORM = { ...UA, 'Content-Type': 'application/x-www-form-urlencoded; charset=UTF-8', Referer: KIS + '/main/opensearch/opensearch_tobe.jsp' };
 
-// 라인업의 비TDF 펀드(코드 → 검색어)
-const EXTRA = [['073101', 'AB미국그로스'], ['073124', 'AB미국그로스'], ['042430', 'KCGI차이나'], ['040429', '글로벌AI'], ['040438', '글로벌AI'], ['010953', '유진챔피언단기채']];
-// FunETF에서 가져오는 2개 펀드(한국투자증권 펀드몰에 없음). 보수·위험등급·설정일·설정액은 고정값.
-const FUNETF = [
-  { key: '484210', fundCd: 'KR5301AW7849', term: '36', base: 'first', co: '미래에셋', fee: 0.62, risk: '3등급(다소높은위험)', setup: '20141111', aum: 6835,
-    name: '미래에셋퇴직연금배당커버드콜액티브증권자투자신탁1호(주식혼합) 종류C-P2e(온라인-퇴직연금)' },
-  { key: 'K55101EI6779', fundCd: 'K55101EI6779', term: '12', base: 'unit', co: '한국투자', fee: 0.74, risk: '4등급(보통위험)', setup: '20260713', aum: null,
-    name: '한국투자인컴주는ETF모으기월배당증권자투자신탁H(채권혼합-재간접형)(A)' },
-];
+// 라인업은 lineup.json 에서 읽는다(펀드 추가/삭제는 그 파일만 수정)
+const CFG = JSON.parse(fs.readFileSync(path.join(ROOT, 'lineup.json'), 'utf8'));
+const ITEMS = CFG.라인업.flatMap(f => f.종목);
+const EXTRA = ITEMS.filter(i => i.한투검색어).map(i => [i.코드, i.한투검색어]);   // 한투 검색으로 찾는 비TDF 펀드
+const FUNETF = ITEMS.filter(i => i.FunETF코드).map(i => ({ key: i.코드, fundCd: i.FunETF코드, term: String(i.기간), base: i.기준, co: i.운용사, fee: i.총보수, risk: i.위험등급, setup: i.설정일, aum: i.설정액억, name: i.정식명 }));
+const HCACHE = path.join(ROOT, 'holdings.json');   // 보유종목 마지막 성공값(조회 실패 시 대체)
+const readJson = (f, d) => { try { return JSON.parse(fs.readFileSync(f, 'utf8')); } catch (e) { return d; } };
 
 const log = m => { const s = `[${new Date().toISOString()}] ${m}`; console.log(s); try { fs.mkdirSync(path.dirname(LOG), { recursive: true }); fs.appendFileSync(LOG, s + '\n'); } catch (e) {} };
 const sleep = ms => new Promise(r => setTimeout(r, ms));
@@ -113,8 +111,14 @@ async function main() {
     } catch (e) { log('WARN funetf ' + f.key + ' ' + e.message); }
   }
   // 5) 보유종목(자동 파싱 가능한 한국투자증권 펀드)
-  const HOLD_AUTO = {};
-  for (const [c] of EXTRA) { try { const h = await holdings(c); if (h.length) HOLD_AUTO[c] = h; } catch (e) { log('WARN holdings ' + c + ' ' + e.message); } }
+  const HOLD_AUTO = {}, hc = readJson(HCACHE, {});
+  for (const [c] of EXTRA) {
+    try { const h = await retry(async () => { const x = await holdings(c); if (!x.length) throw new Error('보유종목 비어 있음'); return x; }, 8); HOLD_AUTO[c] = h; hc[c] = { date: new Date().toISOString().slice(0, 10), hold: h }; }
+    catch (e) { if (hc[c] && hc[c].hold.length) { HOLD_AUTO[c] = hc[c].hold; log('WARN 보유종목 ' + c + ' 조회 실패(' + e.message + '), ' + hc[c].date + ' 값 사용'); } else throw new Error('보유종목 없음 ' + c + ': ' + e.message); }
+  }
+  fs.writeFileSync(HCACHE, JSON.stringify(hc, null, 1));
+  const have = new Set([...R_TDF, ...R_EXTRA].map(r => r[0]));
+  const miss = ITEMS.map(i => i.코드).filter(c => !have.has(c)); if (miss.length) throw new Error('라인업 코드를 찾지 못함(코드/검색어 확인): ' + miss.join(','));
   // 6) 검증: 그래프 수익률과 공식 수치가 맞는지(1개월·3개월·1년)
   let bad = 0, cnt = 0;
   for (const r of [...R_TDF, ...R_EXTRA.filter(x => S[x[0]])]) for (const [col, p] of [[4, 1], [5, 3], [7, 12]]) {
@@ -125,7 +129,15 @@ async function main() {
   // 7) 페이지 생성
   const asof = `${END.slice(0, 4)}-${END.slice(4, 6)}-${END.slice(6, 8)}`;
   const kst = new Date(Date.now() + 9 * 3600e3).toISOString().slice(0, 16).replace('T', ' ');
-  const data = `const AXIS="${axis.join(' ')}";\nconst R_TDF=[\n${R_TDF.map(r => JSON.stringify(r)).join(',\n')}\n];\nconst R_EXTRA=[\n${R_EXTRA.map(r => JSON.stringify(r)).join(',\n')}\n];\nconst HOLD_AUTO=${JSON.stringify(HOLD_AUTO)};\nconst NAVS={\n${Object.keys(V).map(k => JSON.stringify(k) + ':' + JSON.stringify(V[k])).join(',\n')}\n};`;
+  const LINEUP = CFG.라인업.map(f => ({ g: f.묶음, type: f.유형, name: f.펀드명, feat: f.특징, etc: f.비고, codes: f.종목.map(i => i.코드) }));
+  const LB = Object.fromEntries(ITEMS.filter(i => i.짧은이름).map(i => [i.코드, i.짧은이름]));
+  const NOTE = Object.fromEntries(ITEMS.filter(i => i.메모).map(i => [i.코드, i.메모]));
+  const HOLD_STATIC = Object.fromEntries(ITEMS.filter(i => i.보유종목).map(i => [i.코드, i.보유종목]));
+  const data = `const LINEUP=${JSON.stringify(LINEUP)};
+const LB=${JSON.stringify(LB)};
+const NOTE=${JSON.stringify(NOTE)};
+const HOLD_STATIC=${JSON.stringify(HOLD_STATIC)};
+const AXIS="${axis.join(' ')}";\nconst R_TDF=[\n${R_TDF.map(r => JSON.stringify(r)).join(',\n')}\n];\nconst R_EXTRA=[\n${R_EXTRA.map(r => JSON.stringify(r)).join(',\n')}\n];\nconst HOLD_AUTO=${JSON.stringify(HOLD_AUTO)};\nconst NAVS={\n${Object.keys(V).map(k => JSON.stringify(k) + ':' + JSON.stringify(V[k])).join(',\n')}\n};`;
   const html = fs.readFileSync(path.join(ROOT, 'tpl.html'), 'utf8').replace('/*@@DATA@@*/', () => data).replace(/@@ASOF@@/g, asof).replace('@@UPDATED@@', kst + ' (KST)');
   if (html.length < 200000) throw new Error('생성된 HTML이 비정상적으로 작음');
   let saved = 0;

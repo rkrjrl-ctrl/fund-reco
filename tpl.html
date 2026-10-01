@@ -51,41 +51,15 @@ td.k{background:#f0f1f8;font-weight:bold;text-align:left;white-space:nowrap}
 // 행: [코드,펀드명,운용사,총보수%,1M,3M,6M,1Y,3Y,위험등급,설정일,설정액(억),빈티지,상품군]
 /*@@DATA@@*/
 const R=R_TDF.concat(R_EXTRA);
-// 출처가 다른 펀드의 보충 메모와 주요 보유종목(TOP10, 종목 비중%)
-const NOTE={
- "484210":"수익률과 그래프 모두 FunETF 종류C(오프라인-퇴직연금) 분배금 반영 기준가로 계산(기준일 @@ASOF@@). 미래에셋자산운용 공식 페이지 수치와는 산정 방식 차이로 일부 다를 수 있음(2026-09-30 확인: 1년 운용사 81.78% vs FunETF 84.17%). 보유종목은 2026-08-30 기준(자동 갱신 대상 아님). 총보수는 C-P2e 온라인 클래스 0.62%(종류C는 0.85%). 벤치마크 KOSPI200(70%)+MMI(30%). 한국투자증권 온라인 펀드몰 검색에는 없음.",
- "K55101EI6779":"수익률과 그래프 모두 FunETF 분배금 반영 기준가로 계산(기준일 @@ASOF@@). 한국투자신탁운용 공식 페이지 수치와는 산정 방식 차이로 일부 다를 수 있음(2026-09-30 확인: 1개월 운용사 -3.03% vs FunETF -2.17%). 보유종목은 2026-09-17 기준(자동 갱신 대상 아님). 확인된 클래스는 A(선취 1.00%, 오프라인)뿐이며 2026.07.13 설정으로 3개월 이상 수익률이 없음. 연금 클래스는 확인되지 않음.",
-};
-const HOLD_STATIC={
- "484210":["SK하이닉스 20.02","삼성전자 19.71","삼성전자우 9.50","TIGER 200 5.95","TIGER 배당커버드콜액티브 4.43","SK스퀘어 1.74","KB금융 1.30","맥쿼리인프라 0.98","삼성전기우 0.96","우리금융지주 0.91"],
- "K55101EI6779":["Ishares Core U.S. Aggregate Bo 20.86","Northern Trust High Yield Value-Scored B 12.75","Ace 미국빅테크7+데일리타겟커버드콜(합성) 12.65","Ace 미국500데일리타겟커버드콜(합성) 10.78","Ishares Jp Morgan Em Bond Fd 9.82","Global X Us Preferred Etf 7.91","Vaneck Vectors Preferred Secur 7.87","Ishares Emerging Markets High Yield Bond 5.81","Vanguard Short-Term Tips 5.02","Ace 미국배당다우존스 2.98"],
- "042430":["TENCENT HOLDINGS LTD 12.01","Alibaba Group Holding Ltd 9.28","TAIWAN SEMICONDUCTOR-SP ADR 7.95","China Construction Bank Corp 6.54","NAURA TECHNOLOGY GROUP CO-A 5.52","China Life Insurance Company Ltd. 5.05","ZHONGJI INNOLIGHT CO LTD-A 4.17","SEMICONDUCTOR MANUFACTURING 4.06","Contemporary Amperex Technology Co Ltd 3.73","BANK OF CHINA LTD-H 3.63"],
- "040429":["TAIWAN SEMICONDUCT 8.68","NVIDIA CORP 8.51","SK하이닉스 7.66","APPLE INC 7.03","BROADCOM INC 6.74","ALPHABET INC - CL A 6.65","VERTIV HOLDINGS CO 4.75","APPLIED MATERIAL 4.74","TESLA INC 4.72","ARM Holdings PLC 4.64"],
- "040438":["TAIWAN SEMICONDUCT 9.00","NVIDIA CORP 8.83","SK하이닉스 7.94","APPLE INC 7.29","BROADCOM INC 7.00","ALPHABET INC - CL A 6.89","VERTIV HOLDINGS CO 4.93","APPLIED MATERIAL 4.92","TESLA INC 4.90","ARM Holdings PLC 4.81"],
- "073101":["AB-American Growth Portfolio Class SK 92.87"],
- "073124":["AB-American Growth Portfolio Class SK 96.58"],
- "010953":["유진챔피언초단기채혼합자산투자신탁 Class C-S 5.61","국고02000-4603 2.27","국고01875-5103 1.82","디에스투자증(콜) 1.75","신한 자금부(CD) 1.73","롯데카드547 1.69","롯데카드569-3 1.61","뉴스텔라제육차1-1 1.50","현대카드836-2 1.00","메리츠증권2509-3 0.91"],
-};
+// 보충 메모(NOTE)·고정 보유종목(HOLD_STATIC)·라벨(LB)·라인업(LINEUP)은 lineup.json 에서 주입됨
 const HOLD=Object.assign({},HOLD_STATIC,HOLD_AUTO);
-const LB={"073101":"AB미국그로스","073124":"AB미국그로스 UH","042430":"KCGI차이나","040429":"한투 AI&반도체 H","040438":"한투 AI&반도체 UH","010953":"유진 단기채","484210":"미래 퇴직연금배당커버드콜","K55101EI6779":"한투 인컴주는 월배당(A)"};
 // ───────── 데이터 준비 ─────────
 const DN=s=>Date.UTC(+s.slice(0,4),+s.slice(4,6)-1,+s.slice(6,8))/864e5;
 const NAV={d:AXIS.split(" "),v:{}};NAV.n=NAV.d.map(DN);
 for(const k in NAVS)NAV.v[k]=NAVS[k].split(",").map(x=>x===""?null:+x);
 const DMIN=NAV.n[0],DMAX=NAV.n[NAV.n.length-1];
 const D=Object.fromEntries(R.map(r=>[r[0],r]));
-const F=(g,type,name,feat,etc,codes)=>({g,type,name,feat,etc,codes});
-const FUNDS=[
- F(1,"미국주식","AB미국그로스증권투자신탁","미국S&P500기본 + 성장주","",["073101"]),
- F(1,"미국주식","AB미국그로스UH증권투자신탁","미국S&P500기본 + 성장주+환율","",["073124"]),
- F(1,"국내주식","미래(에셋)퇴직연금배당커버드콜액티브증권자투자신탁","배당주 투자 + 콜옵션 매도","",["484210"]),
- F(1,"중국주식","KCGI차이나증권투자신탁","중국본토+홍콩+해외상장 범중국 기업","",["042430"]),
- F(2,"혼합형","한국투자적극TDF알아서ETF포커스2050","전세계 주식 + 채권","IRP 100%가능",["069083"]),
- F(2,"혼합형","신한마음편한적극TDF2050증권투자신탁","전세계 주식 + 채권","IRP 100%가능",["073242"]),
- F(2,"주식","한국투자글로벌AI&반도체TOP10증권자투자신탁","AI&반도체 주요 10개 기업 집중 투자","",["040429","040438"]),
- F(2,"혼합형","한국투자인컴주는ETF모으기월배당펀드","커버드콜+고배당+하이일드+채권","IRP 100% 가능",["K55101EI6779"]),
- F(3,"단기채권","유진챔피언단기채증권자투자신탁","단기채권 예적금 수준","IRP 100% 가능",["010953"]),
-];
+const FUNDS=LINEUP;
 const ME=new Set(FUNDS.flatMap(f=>f.codes));
 const $=s=>document.querySelector(s),v=x=>x==null||x===""?"-":x;
 const esc=s=>String(s).replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));

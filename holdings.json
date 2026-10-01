@@ -1,0 +1,74 @@
+{
+ "073101": {
+  "date": "2026-09-30",
+  "hold": [
+   "AB-American Growth Portfolio Class SK 92.87"
+  ]
+ },
+ "073124": {
+  "date": "2026-09-30",
+  "hold": [
+   "AB-American Growth Portfolio Class SK 96.58"
+  ]
+ },
+ "042430": {
+  "date": "2026-09-30",
+  "hold": [
+   "TENCENT HOLDINGS LTD 12.01",
+   "Alibaba Group Holding Ltd 9.28",
+   "TAIWAN SEMICONDUCTOR-SP ADR 7.95",
+   "China Construction Bank Corp 6.54",
+   "NAURA TECHNOLOGY GROUP CO-A 5.52",
+   "China Life Insurance Company Ltd. 5.05",
+   "ZHONGJI INNOLIGHT CO LTD-A 4.17",
+   "SEMICONDUCTOR MANUFACTURING 4.06",
+   "Contemporary Amperex Technology Co Ltd 3.73",
+   "BANK OF CHINA LTD-H 3.63"
+  ]
+ },
+ "040429": {
+  "date": "2026-09-30",
+  "hold": [
+   "TAIWAN SEMICONDUCT 8.68",
+   "NVIDIA CORP 8.51",
+   "SK하이닉스 7.66",
+   "APPLE INC 7.03",
+   "BROADCOM INC 6.74",
+   "ALPHABET INC - CL A 6.65",
+   "VERTIV HOLDINGS CO 4.75",
+   "APPLIED MATERIAL 4.74",
+   "TESLA INC 4.72",
+   "ARM Holdings PLC 4.64"
+  ]
+ },
+ "040438": {
+  "date": "2026-09-30",
+  "hold": [
+   "TAIWAN SEMICONDUCT 9.00",
+   "NVIDIA CORP 8.83",
+   "SK하이닉스 7.94",
+   "APPLE INC 7.29",
+   "BROADCOM INC 7.00",
+   "ALPHABET INC - CL A 6.89",
+   "VERTIV HOLDINGS CO 4.93",
+   "APPLIED MATERIAL 4.92",
+   "TESLA INC 4.90",
+   "ARM Holdings PLC 4.81"
+  ]
+ },
+ "010953": {
+  "date": "2026-09-30",
+  "hold": [
+   "유진챔피언초단기채혼합자산투자신탁 Class C-S 5.61",
+   "국고02000-4603 2.27",
+   "국고01875-5103 1.82",
+   "디에스투자증(콜) 1.75",
+   "신한 자금부(CD) 1.73",
+   "롯데카드547 1.69",
+   "롯데카드569-3 1.61",
+   "뉴스텔라제육차1-1 1.50",
+   "현대카드836-2 1.00",
+   "메리츠증권2509-3 0.91"
+  ]
+ }
+}

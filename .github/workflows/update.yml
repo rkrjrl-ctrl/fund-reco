@@ -4,6 +4,8 @@ on:
     - cron: '30 23 * * *'   # 08:30 KST
     - cron: '30 10 * * *'   # 19:30 KST
   workflow_dispatch:
+  push:
+    paths: [lineup.json, tpl.html, update.js]
 permissions:
   contents: write
 jobs:
@@ -19,5 +21,5 @@ jobs:
       - run: |
           git config user.name github-actions
           git config user.email github-actions@users.noreply.github.com
-          git add docs
+          git add docs holdings.json
           git diff --cached --quiet || (git commit -m "data update" && git push)
