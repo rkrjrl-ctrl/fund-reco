@@ -22,4 +22,4 @@ jobs:
           git config user.name github-actions
           git config user.email github-actions@users.noreply.github.com
           git add docs holdings.json history.json metlife-cache.json
-          git diff --cached --quiet || (git commit -m "data update" && git push)
+          git diff --cached --quiet || { git commit -m "data update"; for i in 1 2 3 4; do git push && break; sleep 20; git pull --rebase -q; done; }
