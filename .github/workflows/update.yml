@@ -8,6 +8,10 @@ on:
     paths: [lineup.json, tpl.html, update.js, metlife.js]
 permissions:
   contents: write
+concurrency:
+  group: update
+  cancel-in-progress: false
+
 jobs:
   update:
     runs-on: ubuntu-latest
