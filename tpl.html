@@ -250,7 +250,7 @@ function simBody(){
  const R=simCalc();
  if(!R)return `<p class=note>아래 표에서 펀드별 비중(%)을 입력하면 조합의 누적 수익률 그래프가 그려집니다.</p>`;
  NAV.v.SIM=R.arr;
- const items=()=>[{c:"SIM",label:"★ 내 조합",color:"#111",bold:true},...R.sel.map(([c,w],k)=>({c,label:`${vn(c)} ${Math.round(w/R.sum*1000)/10}%`,color:PAL[(k+1)%PAL.length],off:HID.has(c),dash:true}))];
+ const items=()=>[{c:"SIM",label:"내 조합",color:"#111",bold:true},...R.sel.map(([c,w],k)=>({c,label:`${vn(c)} ${Math.round(w/R.sum*1000)/10}%`,color:PAL[(k+1)%PAL.length],off:HID.has(c),dash:true}))];
  const key="s"+R.s;
  let h=(Math.abs(R.sum-100)>1e-6?`<p class=note style="color:#c62828">비중 합계가 ${Math.round(R.sum*10)/10}%라서 합계로 나눠 100%로 환산해 계산했습니다.</p>`:"")+
   `<p class=note>계산 구간: ${date(NAV.d[R.s])} ~ ${date(NAV.d[R.e])} (가장 늦게 설정된 펀드의 첫 기준가일 ${date(NAV.d[R.first])} 이후만 가능)</p>`;
