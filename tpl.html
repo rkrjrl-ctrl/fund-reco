@@ -86,7 +86,9 @@ const endRet=(c,p)=>{const V=perView(p);const s=series([c],V.v0,V.v1)[0];return 
 const VIEW={},VPER={},CFG={},CH={},BASE={};
 let FIXB=true;try{const f=localStorage.getItem("fixB");if(f!=null)FIXB=f=="1"}catch(e){}
 function niceStep(x){const e=Math.pow(10,Math.floor(Math.log10(x)));const f=x/e;return (f<=1?1:f<=2?2:f<=5?5:10)*e}
-function chartBox(id,cfg,p){CFG[id]=cfg;if(!VIEW[id]||VPER[id]!==p){VIEW[id]=perView(p);VPER[id]=p}BASE[id]=perView(p).v0;
+// 첫 기준가 이전의 빈 구간(다른 자료의 더 이른 날짜 때문)은 보이는 구간에서 뺀다
+function pv(id,p){const V=perView(p);if(typeof p=="string"||!CFG[id])return V;let f=1e9;for(const it of CFG[id].items()){const a=NAV.v[it.c];if(!a)continue;const i=a.findIndex(x=>x!=null);if(i>=0)f=Math.min(f,NAV.n[i])}return f<1e9&&f>V.v0&&f<V.v1?{v0:f,v1:V.v1}:V}
+function chartBox(id,cfg,p){CFG[id]=cfg;if(!VIEW[id]||VPER[id]!==p){VIEW[id]=pv(id,p);VPER[id]=p}BASE[id]=pv(id,p).v0;
  return `<div class=tog><span class=hint>마우스 휠: 확대/축소 · 드래그: 좌우 이동 · 더블클릭: 초기화 <a data-zr="${id}">초기화</a>${cfg.raw?"":`<a data-fix="1" class="${FIXB?"on":""}" title="켜면 확대·이동해도 0%의 기준이 처음 시작일로 유지되고, 끄면 보이는 구간의 시작점이 0%가 됩니다">기준점 고정</a>`}</span></div><div class=cb id="${id}"></div><div id="lg-${id}"></div>`}
 function draw(id){
  const c=CFG[id],box=document.getElementById(id);if(!c||!box)return;const V=VIEW[id],items=c.items();
@@ -102,7 +104,7 @@ function draw(id){
  S.forEach((s,i)=>{if(items[i].off||!s.pts.length)return;const it=items[i];g+=`<path d="${s.pts.map((q,j)=>(j?"L":"M")+X(NAV.n[q[0]]).toFixed(1)+" "+Y(q[1]).toFixed(1)).join("")}" fill="none" stroke="${it.color}" stroke-width="${it.bold?3:1.5}" stroke-linejoin="round" ${it.dash?'stroke-dasharray="6 3"':""} opacity="${it.bold?1:.88}"/>`;
   if(s.pts.length<=40)s.pts.forEach(q=>{g+=`<circle cx="${X(NAV.n[q[0]]).toFixed(1)}" cy="${Y(q[1]).toFixed(1)}" r="2" fill="${it.color}"/>`})});
  g+=`</g><line class="cx" x1="0" x2="0" y1="${T}" y2="${H-B}" stroke="#333" stroke-dasharray="3 3" style="display:none"/>`;
- CH[id]={S,items,V,W,L,Rm};box.innerHTML=`<svg viewBox="0 0 ${W} ${H}">${g}</svg>`;
+ CH[id]={S,items,V,W,L,Rm,raw:c.raw};box.innerHTML=`<svg viewBox="0 0 ${W} ${H}">${g}</svg>`;
  const lg=document.getElementById("lg-"+id);
  lg.innerHTML=`<div class="lg">`+items.map((it,i)=>{const e=S[i].pts.length?S[i].pts[S[i].pts.length-1][1]:null;return `<span class="${it.off?"off":""}" data-x="${id}|${it.c}"><i style="background:${it.color}"></i>${it.bold?"★ ":""}${esc(it.label)}<b>${e==null?"-":c.raw?Math.round(e).toLocaleString()+"만":(e>0?"+":"")+e.toFixed(1)+"%"}</b></span>`}).join("")+`</div>`}
 function drawAll(){for(const id in CFG)draw(id)}
@@ -115,7 +117,7 @@ document.addEventListener("wheel",e=>{const b=e.target.closest(".cb");if(!b||!CH
  VIEW[id]={v0,v1};draw(id)},{passive:false});
 document.addEventListener("mousedown",e=>{const b=e.target.closest(".cb");if(!b||!CH[b.id]||e.button!=0)return;DRAG={id:b.id,x:e.clientX,V:{...VIEW[b.id]},moved:false};b.classList.add("drag")});
 document.addEventListener("mouseup",()=>{if(DRAG){const b=document.getElementById(DRAG.id);if(b)b.classList.remove("drag");DRAG=null}});
-document.addEventListener("dblclick",e=>{const b=e.target.closest(".cb");if(!b||!CFG[b.id])return;VIEW[b.id]=perView(VPER[b.id]);draw(b.id)});
+document.addEventListener("dblclick",e=>{const b=e.target.closest(".cb");if(!b||!CFG[b.id])return;VIEW[b.id]=pv(b.id,VPER[b.id]);draw(b.id)});
 document.addEventListener("mousemove",e=>{
  const tip=$("#tip");
  if(DRAG){const id=DRAG.id,c=CH[id];if(!c)return;const svg=document.getElementById(id).querySelector("svg"),r=svg.getBoundingClientRect();
@@ -303,8 +305,8 @@ function simBody(){
  const sh=R.on.filter(x=>x.short);
  if(sh.length)h+=`<p class=note style="color:#c62828">※ ${sh.map(x=>`${esc(x.p.name)}: ${esc(DV[x.lim][1])}(${date(NAV.d[idx0(x.lim)])} 시작) 때문에 ${date(NAV.d[x.s])}부터 계산`).join(" / ")}. 다른 조합보다 짧은 기간이라 수익률을 그대로 비교하기는 어렵습니다. 모두 같은 기간으로 보려면 기간을 ${date(NAV.d[Math.max(...R.on.map(x=>x.s))])} 이후로 줄여 보세요.</p>`;
  h+=`<div class=card>${chartBox("cbs",{items},key)}<div class=note>납입한 원금 대비 평가손익률(%). 범례, 위의 ●, 아래 표의 조합 줄을 눌러 조합별로 켜고 끌 수 있습니다.${R.comps.length?" 점선 = 선택한 조합의 구성 펀드를 같은 납입 조건으로 그 펀드에만 투자한 경우(표의 └ 줄을 눌러도 켜고 끕니다).":""} 마우스 휠로 확대/축소, 드래그로 이동.</div></div>`;
- if(dca)h+=`<div class=card>${chartBox("cbw",{items:()=>[...R.res.map(x=>({c:"SIMV"+x.p.id,label:x.p.name+" 평가금액"+per(x),color:pcol(x.p),bold:true,off:!x.p.on})),{c:"SIMC",label:"누적 납입원금",color:"#555",dash:true}],raw:true},key)}<div class=note>평가금액과 누적 납입원금(만원 단위). 점선 = 납입원금.</div></div>`;
- return h+simTable(R)+`<p class=note>리밸런싱: ${REB[sReb]} · 연 변동성은 납입금 영향을 뺀 일간 수익률 기준 · 연환산(IRR)은 납입 시점별 현금흐름 기준이며 1년 미만이면 표시하지 않습니다 · 특별계정 기준가 기준(보험 사업비·위험보험료·세금 미반영) · 과거 수익률은 미래 수익을 보장하지 않습니다.</p>`;
+ const tbl=simTable(R);if(dca)h+=tbl+`<div class=card>${chartBox("cbw",{items:()=>[...R.res.map(x=>({c:"SIMV"+x.p.id,label:x.p.name+" 평가금액"+per(x),color:pcol(x.p),bold:true,off:!x.p.on})),{c:"SIMC",label:"누적 납입원금",color:"#555",dash:true}],raw:true},key)}<div class=note>평가금액과 누적 납입원금(만원 단위). 점선 = 납입원금.</div></div>`;
+ return h+(dca?"":tbl)+`<p class=note>리밸런싱: ${REB[sReb]} · 연 변동성은 납입금 영향을 뺀 일간 수익률 기준 · 연환산(IRR)은 납입 시점별 현금흐름 기준이며 1년 미만이면 표시하지 않습니다 · 특별계정 기준가 기준(보험 사업비·위험보험료·세금 미반영) · 과거 수익률은 미래 수익을 보장하지 않습니다.</p>`;
 }
 function simTable(R){
  const row=x=>{const t=dcaStats(x.r,R.e,x.s),off=!x.p.on;if(!t)return "";return `<tr data-pon="${x.p.id}" style="cursor:pointer;${off?"opacity:.45":""}" title="누르면 그래프 켜기/끄기"><td class=l><i style="display:inline-block;width:10px;height:10px;border-radius:50%;margin-right:6px;border:2px solid ${pcol(x.p)};background:${off?"transparent":pcol(x.p)}"></i><b>${esc(x.p.name)}</b><td${x.short?' style="color:#c62828"':""}>${date(NAV.d[x.s])} ~<td>${won(t.C)}<td>${won(t.V)}<td>${pct(t.ret)}<td>${t.irr==null?"-":pct(t.irr)}<td>${t.vol.toFixed(1)}%<td>${pct(t.mn)}</tr>`};
@@ -365,7 +367,7 @@ document.addEventListener("click",e=>{
  else if(tpp){tp=+tpp.dataset.tp;render()}
  else if(dpp){dp=+dpp.dataset.dp;render()}
  else if(fx){FIXB=!FIXB;try{localStorage.setItem("fixB",FIXB?"1":"0")}catch(e){}render()}
- else if(zr){VIEW[zr.dataset.zr]=perView(VPER[zr.dataset.zr]);draw(zr.dataset.zr)}
+ else if(zr){VIEW[zr.dataset.zr]=pv(zr.dataset.zr,VPER[zr.dataset.zr]);draw(zr.dataset.zr)}
  else if(x&&/^SIMV?d+$/.test(x.dataset.x.split("|")[1])){const p=PORTS.find(p=>p.id==+x.dataset.x.split("|")[1].replace("SIMV","").replace("SIM",""));if(p){p.on=!p.on;saveSim();$("#pchips").innerHTML=simChips();simUpdate()}}
  else if(x){const c=x.dataset.x.split("|")[1];HID.has(c)?HID.delete(c):HID.add(c);draw(x.dataset.x.split("|")[0])}
  else if(cs){coSel=cs.dataset.co;famSel="전체";VSEL.clear();HID.clear();render()}

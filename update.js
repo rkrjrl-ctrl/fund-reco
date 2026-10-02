@@ -118,7 +118,10 @@ async function main() {
   let ML = null;
   try { ML = await require('./metlife.js')({ cacheFile: path.join(ROOT, 'metlife-cache.json'), log, retry, sleep, today: new Date(Date.now() + 9 * 3600e3).toISOString().slice(0, 10).replace(/-/g, '') }); }
   catch (e) { log('WARN 메트라이프 ' + e.message); ML = loadMlCache(); if (!ML) throw e; log('WARN 메트라이프 캐시로 진행'); }
-  const axis = [...new Set([...ML.funds.flatMap(f => f.d), ...okIds.flatMap(p => S[p].d), ...Object.values(NAVF).flatMap(n => n.map(x => x[0])), ...Object.values(NAVH).flatMap(n => n.map(x => x[0]))])].filter(d => d <= END).sort();
+  // 메트라이프는 평일마다 값을 싣기 때문에 공휴일(예: 임시공휴일)이 섞인다. 공모펀드 거래일 범위 안에서는 공모펀드가 있는 날만 축에 둔다.
+  const realD = new Set([...okIds.flatMap(p => S[p].d), ...Object.values(NAVF).flatMap(n => n.map(x => x[0])), ...Object.values(NAVH).flatMap(n => n.map(x => x[0]))]);
+  const realMin = [...realD].sort()[0];
+  const axis = [...new Set([...ML.funds.flatMap(f => f.d).filter(d => d < realMin || realD.has(d)), ...okIds.flatMap(p => S[p].d), ...Object.values(NAVF).flatMap(n => n.map(x => x[0])), ...Object.values(NAVH).flatMap(n => n.map(x => x[0]))])].filter(d => d <= END).sort();
   if (axis[axis.length - 1] !== END) throw new Error('기준일 데이터가 시계열에 없음 ' + END);
   const V = {}, F = {}, NOFF = {};
   const packV = (k, arr, fmt) => { const i0 = arr.findIndex(x => x != null); NOFF[k] = i0 < 0 ? 0 : i0; V[k] = arr.slice(NOFF[k]).map(x => x == null ? '' : fmt(x)).join(','); };
@@ -127,7 +130,9 @@ async function main() {
     const first = s.d[0]; let last = null;
     const arr = axis.map(d => { if (d < first) return null; if (m.has(d)) last = m.get(d); return last; });
     if (NAVH[p]) {   // 클래스 출시 이전: 종류A 기준가를 첫 거래일 값에 맞춰 이어 붙임
-      const hm = new Map(NAVH[p]), i0 = arr.findIndex(x => x != null), hv = hm.get(axis[i0]);
+      const hm = new Map(NAVH[p]); let i0 = arr.findIndex(x => x != null);
+      while (i0 + 1 < arr.length && arr[i0 + 1] === arr[i0] && hm.has(axis[i0 + 1])) i0++;   // 출시 직후 기준가 1000이 한동안 그대로인 구간은 건너뛰고 변동 직전 날에 접합
+      const hv = hm.get(axis[i0]);
       if (!hv) throw new Error('접합일 과거이력 없음 ' + p + ' ' + axis[i0]);
       const k = arr[i0] / hv; let hl = null; const hf = NAVH[p][0][0];
       for (let i = 0; i < i0; i++) { const d = axis[i]; if (d < hf) continue; if (hm.has(d)) hl = hm.get(d); if (hl != null) arr[i] = hl * k; }
@@ -165,12 +170,12 @@ async function main() {
   fs.writeFileSync(HCACHE, JSON.stringify(hc, null, 1));
   const have = new Set([...R_TDF, ...R_EXTRA].map(r => r[0]));
   const miss = ITEMS.map(i => i.코드).filter(c => !have.has(c)); if (miss.length) throw new Error('라인업 코드를 찾지 못함(코드/검색어 확인): ' + miss.join(','));
-  // 6) 검증: 그래프 수익률과 공식 수치가 맞는지(1개월·3개월·1년)
-  let bad = 0, cnt = 0;
-  for (const r of [...R_TDF, ...R_EXTRA.filter(x => S[x[0]])]) for (const [col, p] of [[4, 1], [5, 3], [7, 12]]) {
-    if (r[col] == null || !F[r[0]]) continue; const g = periodRet(axis, F[r[0]], END, p); if (g == null) continue; cnt++; if (Math.abs(g - r[col]) > 0.1) bad++;
+  // 6) 검증: 그래프 수익률과 공식 수치가 맞는지(1·3·6개월, 1·3년)
+  let bad = 0, cnt = 0, bad2 = 0, cnt2 = 0;
+  for (const r of [...R_TDF, ...R_EXTRA.filter(x => S[x[0]])]) for (const [col, p] of [[4, 1], [5, 3], [6, 6], [7, 12], [8, 36]]) {
+    if (r[col] == null || !F[r[0]]) continue; const g = periodRet(axis, F[r[0]], END, p); if (g == null) continue; if (col === 6 || col === 8) { cnt2++; if (Math.abs(g - r[col]) > 0.1) bad2++; continue; } cnt++; if (Math.abs(g - r[col]) > 0.1) bad++;
   }
-  log(`검증 ${cnt}건 중 불일치 ${bad}건`);
+  log(`검증 ${cnt}건 중 불일치 ${bad}건 / 6개월·3년 ${cnt2}건 중 ${bad2}건`);
   if (cnt > 0 && bad / cnt > 0.03) throw new Error('그래프와 공식 수익률 불일치가 많아 갱신을 중단합니다');
   // 7) 페이지 생성
   const asof = `${END.slice(0, 4)}-${END.slice(4, 6)}-${END.slice(6, 8)}`;
