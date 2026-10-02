@@ -299,7 +299,8 @@ function simBody(){
  NAV.v.SIMC=R.on.reduce((a,x)=>x.s<a.s?x:a,R.on[0]).r.C;
  const dca=R.mon>0,key="x"+NAV.n[R.s]+":"+DMAX;
  const rx=p=>R.res.find(x=>x.p===p),per=x=>x&&x.short?` (${NAV.d[x.s].slice(0,4)}.${NAV.d[x.s].slice(4,6)}~)`:"";
- const items=()=>[...R.res.map(x=>({c:"SIM"+x.p.id,label:x.p.name+per(x),color:pcol(x.p),bold:true,off:!x.p.on})),...R.comps.map((x,k)=>({c:"SIMF:"+x.c,label:`└ ${DV[x.c][1]} (단독)`,color:PAL[(k+7)%PAL.length],dash:true,off:HID.has("SIMF:"+x.c)}))];
+ const cit=R.comps.map((x,k)=>({c:"SIMF:"+x.c,label:`└ ${DV[x.c][1]} (단독)`,color:PAL[(k+7)%PAL.length],dash:true,off:HID.has("SIMF:"+x.c)}));
+ const items=()=>R.res.flatMap(x=>[{c:"SIM"+x.p.id,label:x.p.name+per(x),color:pcol(x.p),bold:true,off:!x.p.on},...(x===R.sx?cit:[])]);
  const spanTxt=sSpan=="0"?"가능한 가장 이른 날부터":sSpan=="d"?"직접 정한 시작일부터":"최근 "+(+sSpan/12)+"년";
  let h=`<p class=note>${spanTxt} · ${date(NAV.d[R.s])} ~ ${date(NAV.d[R.e])} · ${R.init?`초기 ${won(R.init)}만원`:""}${R.init&&dca?" + ":""}${dca?`매월 ${won(R.mon)}만원${R.mths?" × "+R.mths+"회":" (끝까지)"}`:""}</p>`;
  const sh=R.on.filter(x=>x.short);
