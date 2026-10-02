@@ -96,9 +96,9 @@ function draw(id){
  const W=900,H=380,L=52,Rm=14,T=12,B=26;let mn=FX?1e9:0,mx=FX?-1e9:0;
  S.forEach((s,i)=>{if(items[i].off)return;s.pts.forEach(q=>{mn=Math.min(mn,q[1]);mx=Math.max(mx,q[1])})});
  if(mx<mn){mn=0;mx=1}if(FX){const pd=(mx-mn)*.06;mn-=pd;mx+=pd}if(mx-mn<0.5){mx=mn+0.5}
- const st=niceStep((mx-mn)/5),lo=Math.floor(mn/st+1e-9)*st,hi=Math.ceil(mx/st-1e-9)*st;
+ const st=niceStep((mx-mn)/5),lo=FX?mn:Math.floor(mn/st+1e-9)*st,hi=FX?mx:Math.ceil(mx/st-1e-9)*st,y0=Math.ceil(lo/st-1e-9)*st;
  const X=d=>L+(d-V.v0)/(V.v1-V.v0)*(W-L-Rm),Y=y=>T+(hi-y)/(hi-lo)*(H-T-B);
- let g="";for(let y=lo;y<=hi+1e-9;y+=st)g+=`<line x1="${L}" x2="${W-Rm}" y1="${Y(y)}" y2="${Y(y)}" stroke="${Math.abs(y)<1e-9?"#555":"#e3e5ee"}"/><text x="${L-6}" y="${Y(y)+4}" font-size="11" text-anchor="end" fill="#666">${fy(y)}</text>`;
+ let g="";for(let y=y0;y<=hi+1e-9;y+=st)g+=`<line x1="${L}" x2="${W-Rm}" y1="${Y(y)}" y2="${Y(y)}" stroke="${Math.abs(y)<1e-9?"#555":"#e3e5ee"}"/><text x="${L-6}" y="${Y(y)+4}" font-size="11" text-anchor="end" fill="#666">${fy(y)}</text>`;
  const span=V.v1-V.v0,nt=6;for(let k=0;k<=nt;k++){const d=V.v0+span*k/nt;g+=`<text x="${X(d)}" y="${H-8}" font-size="11" text-anchor="${k==nt?"end":k==0?"start":"middle"}" fill="#666">${dstr(d).slice(span>150?0:2,span>150?7:10)}</text>`}
  g+=`<clipPath id="cp${id}"><rect x="${L}" y="${T}" width="${W-L-Rm}" height="${H-T-B}"/></clipPath><g clip-path="url(#cp${id})">`;
  S.forEach((s,i)=>{if(items[i].off||!s.pts.length)return;const it=items[i];g+=`<path d="${s.pts.map((q,j)=>(j?"L":"M")+X(NAV.n[q[0]]).toFixed(1)+" "+Y(q[1]).toFixed(1)).join("")}" fill="none" stroke="${it.color}" stroke-width="${it.bold?3:1.5}" stroke-linejoin="round" ${it.dash?'stroke-dasharray="6 3"':""} opacity="${it.bold?1:.88}"/>`;
