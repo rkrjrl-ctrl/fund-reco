@@ -17,7 +17,7 @@ const EXTRA = ITEMS.filter(i => i.한투검색어).map(i => [i.코드, i.한투�
 const FUNETF = ITEMS.filter(i => i.FunETF코드).map(i => ({ key: i.코드, fundCd: i.FunETF코드, term: String(i.기간), base: i.기준, co: i.운용사, fee: i.총보수, risk: i.위험등급, setup: i.설정일, aum: i.설정액억, name: i.정식명 }));
 const HCACHE = path.join(ROOT, 'holdings.json');   // 보유종목 마지막 성공값(조회 실패 시 대체)
 const HISTF = path.join(ROOT, 'history.json');   // 클래스 출시 이전 구간(FunETF 종류A 기준가) 캐시: 과거는 바뀌지 않으므로 한 번만 받음
-const loadMlCache = () => { const c = readJson(path.join(ROOT, 'metlife-cache.json'), null); if (!c) return null; return { eras: c._eras || [], funds: Object.entries(c).filter(([k]) => k[0] !== '_').map(([code, e]) => ({ code, name: e.n, group: require('./metlife.js').group(e.n), flags: e.fl || [], d: e.d, v: e.v })) }; };
+const loadMlCache = () => { const c = readJson(path.join(ROOT, 'metlife-cache.json'), null); if (!c) return null; return { eras: c._eras || [], comp: c._comp || {}, funds: Object.entries(c).filter(([k]) => k[0] !== '_').map(([code, e]) => ({ code, name: e.n, group: require('./metlife.js').group(e.n), flags: e.fl || [], d: e.d, v: e.v })) }; };
 const readJson = (f, d) => { try { return JSON.parse(fs.readFileSync(f, 'utf8')); } catch (e) { return d; } };
 
 const log = m => { const s = `[${new Date().toISOString()}] ${m}`; console.log(s); try { fs.mkdirSync(path.dirname(LOG), { recursive: true }); fs.appendFileSync(LOG, s + '\n'); } catch (e) {} };
@@ -73,7 +73,23 @@ async function tdfInfo(p) {
   if (!eqS && !bdS) throw new Error('구성 정보 없음');
   const num = re => { const m = t.match(re); return m ? m[1].trim().split(' ').map(Number) : []; };
   const sd = num(/표준편차 ([\d\.\- ]+?) % 순위/), sh = num(/샤프지수 ([\d\.\- ]+?) % 순위/);
-  return { eq: sum(eqS), bd: sum(bdS), top: pairs(sec('주식 종목별 비율 Top 10 주식 종목별 비율 Top 10 구분 비율', '채권 포트폴리오'), 6), fx: /KRW\/USD/.test(sec('파생상품 포트폴리오 파생상품 포트폴리오 구분 비율', '펀드 위험 분석')) ? 1 : 0, sd: sd[2] || null, sh: sd[2] ? sh[2] : null, asof: (t.match(/자산운용내역 \(기준일 : ([\d\.]+)\)/) || [])[1] || '' };
+  // 보유 상위 종목 이름으로 자산군을 나눠 추정 노출(%)을 만든다: kr 국내주식, us 미국주식, ox 기타 해외주식, krb 국내채권, glb 해외채권, gold 금, cash 현금성
+  const list = s => [...s.matchAll(/\s*(.+?)\s+(\d+(?:\.\d+)?)%/g)].map(m => [m[1].trim(), +m[2]]);
+  const han = n => /[가-힣]/.test(n);
+  const GOLD = /금현물|GOLD|골드/i, US = /미국|S&P|NASDAQ|나스닥|QQQ|R[UE]SSELL|DOW|다우|Morningstar|INFO TECH|Technology|Tech Sector|SEMICONDUCTOR|PHILX|US EQU|TOTAL STOCK|BIOTECH|BANK ETF|Small.?Cap|빌리어네어|NVIDIA|APPLE|ALPHABET|MICRON|SEAGATE|BROADCOM|MICROSOFT|AMAZON|TESLA|META PLAT|DIVIDEND/i,
+    OX = /EURO|유럽|JAPAN|일본|니케이|NIKKEI|TOPIX|EAFE|DEVELOPED|EMERG|차이나|CHINA|중국|인도|INDIA|ACWI|WORLD|글로벌|GLOBAL|GLB|PACIFIC|TAIWAN|MSCI|FTSE/i,
+    CASH = /예금|DEPOSIT|콜론|\(콜\)|\(CD\)|\(CP\)|미수|증거금|현금|머니마켓|MMF|단기채권|전단채/i, BOND = /BD|BOND|채권|AGG|HIGH IN|HGH IN|YIELD|GOVE|국고|회사채|TREASUR|TIPS|TBIL|T-BILL|FLOATING|Flexible Income/i;
+  const x = { kr: 0, us: 0, ox: 0, krb: 0, glb: 0, gold: 0, cash: 0 }, add = (k, w) => { x[k] += w; };
+  const eqL = list(sec('주식 종목별 비율 Top 10 주식 종목별 비율 Top 10 구분 비율', '채권 포트폴리오')), bdL = list(sec('채권 종목별 비율 Top 10 채권 종목별 비율 Top 10 구분 비율', '스타일 맵')), asL = list(sec('자산 포트폴리오 자산 포트폴리오 구분 비율', '파생상품 포트폴리오'));
+  const eqT = sum(eqS), bdT = sum(bdS);
+  // 주식: 상위 10개의 분류 비율을 주식 전체 비중에 그대로 적용(금 ETF는 금으로)
+  { const c = { kr: 0, us: 0, ox: 0, gold: 0 }; let t = 0; for (const [n, w] of eqL) { const k = GOLD.test(n) ? 'gold' : US.test(n) ? 'us' : OX.test(n) ? 'ox' : han(n) || /KOSPI|200/.test(n) ? 'kr' : 'ox'; c[k] += w; t += w; } if (t > 0) for (const k in c) add(k, eqT * c[k] / t); }
+  { const c = { krb: 0, glb: 0, cash: 0 }; let t = 0; for (const [n, w] of bdL) { const k = CASH.test(n) ? 'cash' : /미국|달러|USD|글로벌|해외/.test(n) || !han(n) ? 'glb' : 'krb'; c[k] += w; t += w; } if (t > 0) for (const k in c) add(k, bdT * c[k] / t); else add('krb', bdT); }
+  // 그 외(해외 펀드·금·현금): 공시된 비율 그대로
+  for (const [n, w] of asL) add(GOLD.test(n) ? 'gold' : CASH.test(n) ? 'cash' : BOND.test(n) ? (han(n) && !/미국|달러|글로벌|해외/.test(n) ? 'krb' : 'glb') : /코리아|KOREA/i.test(n) ? 'kr' : US.test(n) ? 'us' : 'ox', w);
+  { const t = Object.values(x).reduce((a, b) => a + b, 0); if (t > 102) x.cash = Math.max(0, x.cash - (t - 100)); }   // 환헤지용 미수금 등으로 합이 100을 넘는 경우 현금성에서 뺀다
+  for (const k in x) x[k] = Math.round(x[k] * 10) / 10;
+  return { x, eq: sum(eqS), bd: sum(bdS), top: pairs(sec('주식 종목별 비율 Top 10 주식 종목별 비율 Top 10 구분 비율', '채권 포트폴리오'), 6), fx: /KRW\/USD/.test(sec('파생상품 포트폴리오 파생상품 포트폴리오 구분 비율', '펀드 위험 분석')) ? 1 : 0, sd: sd[2] || null, sh: sd[2] ? sh[2] : null, asof: (t.match(/자산운용내역 \(기준일 : ([\d\.]+)\)/) || [])[1] || '' };
 }
 async function holdings(p) {
   const html = await post(KIS + '/main/mall/openfund/FundInfo_Pop.jsp?cmd=A_FP_20280_1', { cmd: 'A_FP_20280_1', pdno: p, pfundCd: p, fundCd: p });
@@ -228,7 +244,7 @@ const LB=${JSON.stringify(LB)};
 const NOTE=${JSON.stringify(NOTE)};
 const HOLD_STATIC=${JSON.stringify(HOLD_STATIC)};
 const AXIS="${axis.join(' ')}";\nconst R_TDF=[\n${R_TDF.map(r => JSON.stringify(r)).join(',\n')}\n];\nconst R_EXTRA=[\n${R_EXTRA.map(r => JSON.stringify(r)).join(',\n')}\n];\nconst ERAS=${JSON.stringify(ML.eras)};
-const R_VAR=[\n${R_VAR.map(r => JSON.stringify(r)).join(',\n')}\n];\nconst NOFF=${JSON.stringify(NOFF)};\nconst HOLD_AUTO=${JSON.stringify(HOLD_AUTO)};\nconst TINFO=${JSON.stringify(TINFO)};\nconst TNOTE=${JSON.stringify(readJson(path.join(ROOT, 'tdf-notes.json'), {}))};\nconst NAVS={\n${Object.keys(V).map(k => JSON.stringify(k) + ':' + JSON.stringify(V[k])).join(',\n')}\n};`;
+const R_VAR=[\n${R_VAR.map(r => JSON.stringify(r)).join(',\n')}\n];\nconst NOFF=${JSON.stringify(NOFF)};\nconst HOLD_AUTO=${JSON.stringify(HOLD_AUTO)};\nconst TINFO=${JSON.stringify(TINFO)};\nconst TNOTE=${JSON.stringify(readJson(path.join(ROOT, 'tdf-notes.json'), {}))};\nconst VINFO=${JSON.stringify(Object.fromEntries(Object.entries(ML.comp || {}).map(([c, v]) => ['M:' + c, v])))};\nconst VNOTE=${JSON.stringify(readJson(path.join(ROOT, 'metlife-notes.json'), {}))};\nconst NAVS={\n${Object.keys(V).map(k => JSON.stringify(k) + ':' + JSON.stringify(V[k])).join(',\n')}\n};`;
   const html = fs.readFileSync(path.join(ROOT, 'tpl.html'), 'utf8').replace('/*@@DATA@@*/', () => data).replace(/@@ASOF@@/g, asof).replace('@@UPDATED@@', kst + ' (KST)');
   if (html.length < 200000) throw new Error('생성된 HTML이 비정상적으로 작음');
   let saved = 0;

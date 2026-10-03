@@ -99,10 +99,29 @@ module.exports = async function metlife({ cacheFile, log, retry, sleep, today })
   await Promise.all(Array.from({ length: 3 }, worker));
   const bad = fails.filter(c => !(cache[c] && cache[c].d.length > 5));
   if (bad.length) throw new Error('메트라이프 기준가 수집 실패: ' + bad.join(','));
+  // 4) 운용현황: 펀드별 자산구성(국내 주식·채권, 수익증권, 해외유가증권, 유동성)과 순자산. 월말 기준으로 공시됨.
+  //    현재 판매 버전은 매번, 과거 버전은 아직 값이 없는 펀드가 있을 때만 받는다. 실패해도 기준가 갱신은 계속.
+  cache._comp = cache._comp || {};
+  try {
+    const norm = s => s.replace(/\s+/g, ''), byName = {}; for (const c of codes) byName[norm(FN[c])] = c;
+    const cell = s => s.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim(), num = s => +s.replace(/,/g, '');
+    const order = [...versions.filter(v => !v.to), ...versions.filter(v => v.to).sort((a, b) => b.from.localeCompare(a.from))];
+    for (const v of order) {
+      if (v.to && v.f.every(([c]) => cache._comp[c])) continue;
+      const h = await (await get(B + 'retrieveVrinsPaOprlPcndDtl.do?insProdSeq=' + v.id + '&submitType=page')).text();
+      const rows = (h.match(/<tr[\s\S]*?<\/tr>/g) || []).map(r => [...r.matchAll(/<t[hd][^>]*>([\s\S]*?)<\/t[hd]>/g)].map(x => cell(x[1])));
+      const head = rows.find(r => /자산구성내역/.test(r[0] || '')); if (!head) continue;
+      const names = head.slice(1), asof = (head[0].match(/\d{4}-\d+월말/) || [''])[0];
+      const row = l => rows.find(r => r[0] === l), pick = l => { const r = row(l); return names.map((_, i) => r ? num(r[2 + i * 2] || '0') : 0); };
+      const st = pick('주식'), bd = pick('채권'), fs2 = pick('수익증권'), ov = pick('해외유가증권'), cash = pick('유동성'), tot = row('계');
+      names.forEach((n, i) => { const c = byName[norm(n)]; if (c && tot) cache._comp[c] = { st: st[i], bd: bd[i], fd: fs2[i], ov: ov[i], cash: cash[i], aum: Math.round(num(tot[1 + i * 2] || '0') / 100), asof }; });
+      await sleep(200);
+    }
+  } catch (e) { log('WARN 메트라이프 운용현황 ' + e.message); }
   cache._eras = ERAS;
   const tmp = cacheFile + '.tmp'; fs.writeFileSync(tmp, JSON.stringify(cache)); fs.renameSync(tmp, cacheFile);
 
   const out = codes.map(c => ({ code: c, name: FN[c], group: group(FN[c]), flags: flagOf(c), d: cache[c].d, v: cache[c].v }));
-  return { funds: out, cur, eras: ERAS };
+  return { funds: out, cur, eras: ERAS, comp: cache._comp };
 };
 module.exports.group = group;
