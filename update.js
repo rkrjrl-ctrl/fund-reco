@@ -51,6 +51,19 @@ async function chart(p) {
   const d = [...m.keys()].sort();
   return { d, c: d.map(x => m.get(x)), b: [] };
 }
+// TDF 구성·위험 지표(주식·채권 비중, 주요 보유, 환헤지 포지션, 1년 변동성·샤프)
+async function tdfInfo(p) {
+  const html = await post(KIS + '/main/mall/openfund/FundInfo_Pop.jsp?cmd=A_FP_20280_1', { cmd: 'A_FP_20280_1', pdno: p, pfundCd: p, fundCd: p });
+  const t = html.replace(/<script[\s\S]*?<\/script>/g, ' ').replace(/<[^>]+>/g, ' ').replace(/테이블 입니다\./g, ' ').replace(/\s+/g, ' ');
+  const sec = (a, b) => { const i = t.indexOf(a); if (i < 0) return ''; const s = t.slice(i + a.length), j = s.indexOf(b); return j < 0 ? '' : s.slice(0, j); };
+  const sum = s => { let x = 0; for (const m of s.matchAll(/(\d+(?:\.\d+)?)%/g)) x += +m[1]; return Math.round(x * 10) / 10; };
+  const pairs = (s, n) => [...s.matchAll(/\s*(.+?)\s+(\d+(?:\.\d+)?)%/g)].slice(0, n).map(m => m[1].trim() + ' ' + (+m[2]).toFixed(1));
+  const eqS = sec('주식 포트폴리오 주식 포트폴리오 구분 비율', '주식 종목별 비율 Top 10'), bdS = sec('채권 포트폴리오 채권 포트폴리오 구분 비율', '채권 종목별 비율 Top 10');
+  if (!eqS && !bdS) throw new Error('구성 정보 없음');
+  const num = re => { const m = t.match(re); return m ? m[1].trim().split(' ').map(Number) : []; };
+  const sd = num(/표준편차 ([\d\.\- ]+?) % 순위/), sh = num(/샤프지수 ([\d\.\- ]+?) % 순위/);
+  return { eq: sum(eqS), bd: sum(bdS), top: pairs(sec('주식 종목별 비율 Top 10 주식 종목별 비율 Top 10 구분 비율', '채권 포트폴리오'), 6), fx: /KRW\/USD/.test(sec('파생상품 포트폴리오 파생상품 포트폴리오 구분 비율', '펀드 위험 분석')) ? 1 : 0, sd: sd[2] || null, sh: sd[2] ? sh[2] : null, asof: (t.match(/자산운용내역 \(기준일 : ([\d\.]+)\)/) || [])[1] || '' };
+}
 async function holdings(p) {
   const html = await post(KIS + '/main/mall/openfund/FundInfo_Pop.jsp?cmd=A_FP_20280_1', { cmd: 'A_FP_20280_1', pdno: p, pfundCd: p, fundCd: p });
   const t = html.replace(/<script[\s\S]*?<\/script>/g, ' ').replace(/<[^>]+>/g, ' ').replace(/테이블 입니다\./g, ' ').replace(/\s+/g, ' ');
@@ -168,6 +181,12 @@ async function main() {
     catch (e) { if (hc[c] && hc[c].hold.length) { HOLD_AUTO[c] = hc[c].hold; log('WARN 보유종목 ' + c + ' 조회 실패(' + e.message + '), ' + hc[c].date + ' 값 사용'); } else throw new Error('보유종목 없음 ' + c + ': ' + e.message); }
   }
   fs.writeFileSync(HCACHE, JSON.stringify(hc, null, 1));
+  // 5-2) TDF 구성·위험 지표: 실패하면 직전 값(tdfinfo.json)을 쓰고 갱신은 계속
+  const TFILE = path.join(ROOT, 'tdfinfo.json'), tc = readJson(TFILE, {}), TINFO = {};
+  { let k = 0; const ids = R_TDF.map(r => r[0]); let fail = 0;
+    const w = async () => { while (k < ids.length) { const c = ids[k++]; try { tc[c] = await retry(() => tdfInfo(c), 3); } catch (e) { fail++; } if (tc[c]) TINFO[c] = tc[c]; await sleep(150); } };
+    await Promise.all(Array.from({ length: 4 }, w)); if (fail) log('WARN TDF 구성 조회 실패 ' + fail + '건(직전 값 사용)'); }
+  fs.writeFileSync(TFILE, JSON.stringify(tc));
   const have = new Set([...R_TDF, ...R_EXTRA].map(r => r[0]));
   const miss = ITEMS.map(i => i.코드).filter(c => !have.has(c)); if (miss.length) throw new Error('라인업 코드를 찾지 못함(코드/검색어 확인): ' + miss.join(','));
   // 6) 검증: 그래프 수익률과 공식 수치가 맞는지(1·3·6개월, 1·3년)
@@ -189,7 +208,7 @@ const LB=${JSON.stringify(LB)};
 const NOTE=${JSON.stringify(NOTE)};
 const HOLD_STATIC=${JSON.stringify(HOLD_STATIC)};
 const AXIS="${axis.join(' ')}";\nconst R_TDF=[\n${R_TDF.map(r => JSON.stringify(r)).join(',\n')}\n];\nconst R_EXTRA=[\n${R_EXTRA.map(r => JSON.stringify(r)).join(',\n')}\n];\nconst ERAS=${JSON.stringify(ML.eras)};
-const R_VAR=[\n${R_VAR.map(r => JSON.stringify(r)).join(',\n')}\n];\nconst NOFF=${JSON.stringify(NOFF)};\nconst HOLD_AUTO=${JSON.stringify(HOLD_AUTO)};\nconst NAVS={\n${Object.keys(V).map(k => JSON.stringify(k) + ':' + JSON.stringify(V[k])).join(',\n')}\n};`;
+const R_VAR=[\n${R_VAR.map(r => JSON.stringify(r)).join(',\n')}\n];\nconst NOFF=${JSON.stringify(NOFF)};\nconst HOLD_AUTO=${JSON.stringify(HOLD_AUTO)};\nconst TINFO=${JSON.stringify(TINFO)};\nconst TNOTE=${JSON.stringify(readJson(path.join(ROOT, 'tdf-notes.json'), {}))};\nconst NAVS={\n${Object.keys(V).map(k => JSON.stringify(k) + ':' + JSON.stringify(V[k])).join(',\n')}\n};`;
   const html = fs.readFileSync(path.join(ROOT, 'tpl.html'), 'utf8').replace('/*@@DATA@@*/', () => data).replace(/@@ASOF@@/g, asof).replace('@@UPDATED@@', kst + ' (KST)');
   if (html.length < 200000) throw new Error('생성된 HTML이 비정상적으로 작음');
   let saved = 0;
