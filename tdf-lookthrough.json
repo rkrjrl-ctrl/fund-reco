@@ -1,0 +1,38 @@
+{
+ "_설명": "TDF 보유 종목 이름 → 자산·지역 비중(%). 위에서부터 처음 맞는 규칙을 적용(대소문자 무시). 값이 글자면 presets의 묶음, 'BOND'는 채권(이름이 한글이고 미국·글로벌이 없으면 국내채권, 아니면 해외채권). 셋째 값 'A'는 '자산 포트폴리오' 목록에만 적용. 키: kr 한국, us 미국, eu 유럽, jp 일본, cn 중국·홍콩, in 인도, oth 기타 지역(캐나다·호주·대만·기타 신흥국 등), gl 지역 미분류, krb 국내채권, glb 해외채권, gold 금·원자재, cash 현금성. 재간접 펀드 비중은 운용사 공개 자료(2026-08 기준)와 지수 구성으로 정리한 근사값.",
+ "presets": {
+  "ACWI": {"us": 63, "eu": 13, "jp": 5, "cn": 3, "in": 2, "oth": 14},
+  "WORLD": {"us": 71, "eu": 16, "jp": 6, "oth": 7},
+  "DEVXUS": {"eu": 55, "jp": 22, "oth": 23},
+  "EM": {"cn": 28, "in": 17, "oth": 55},
+  "EMXCN": {"in": 25, "oth": 75}
+ },
+ "rules": [
+  ["Copper Miners|GLOBAL REIT|Global Infrastructure|SUPERDIVIDEND|Cohen & Steers", "WORLD"],
+  ["금현물|GOLD|골드|SILVER|GSCI|COPPER INDEX|BASE METALS|OIL FUND|DB OIL", {"gold": 100}],
+  ["CAP-NEW ECONOMY", {"us": 64, "eu": 14, "jp": 3, "cn": 1, "oth": 14, "cash": 4}],
+  ["CAPITAL GP NEW PERS", {"us": 54, "eu": 24, "jp": 5, "cn": 2, "oth": 13, "cash": 2}],
+  ["CAP GROUP DIVIDEND VALUE", {"us": 90, "eu": 8, "oth": 2}],
+  ["글로벌HBM", {"kr": 50, "us": 40, "oth": 10}],
+  ["GLB DEVELOPED|GL EQ EN|2DEG GLEQ|Global Stars|GLOBAL VALUE", "WORLD"],
+  ["POLAR CAPITAL-AUTO", {"us": 60, "eu": 12, "jp": 10, "oth": 18}],
+  ["글로벌 스마트 알파|KCGI글로벌", "ACWI"],
+  ["예금|DEPOSIT|콜론|\\(콜\\)|\\(CD\\)|\\(CP\\)|미수|증거금|현금|머니마켓|MMF|은대|Repo|(USD|EUR|GBP) CALL|단기채", {"cash": 100}],
+  ["BD|BOND|채권\\]|\\[채권|AGG|HIGH IN|HGH IN|HIGH YIELD|GOVE|국고|회사채|TREASUR|FIXED INC|DEBT|CREDIT|GRADE CR|STD CR|GCF|Preferred|Convertible|Variable Rate|한국전력|크레딧|SICAV - Div", "BOND", "A"],
+  ["ACWI|TOTAL WORLD", "ACWI"],
+  ["MSCI WORLD", "WORLD"],
+  ["EX CHINA|EX CHNA", "EMXCN"],
+  ["EMER|EMRG|EM MK|CORE MSC$", "EM"],
+  ["차이나|CHINA|중국", {"cn": 100}],
+  ["인도|INDIA", {"in": 100}],
+  ["TAIWAN", {"oth": 100}],
+  ["ASIA PACIFIC", {"cn": 30, "in": 18, "oth": 52}],
+  ["PACIFIC EX", {"oth": 100}],
+  ["EURO|유럽", {"eu": 100}],
+  ["JAPAN|일본|니케이|NIKKEI|TOPIX", {"jp": 100}],
+  ["EAFE|FTSE DEVELOPED", "DEVXUS"],
+  ["SOUTH KOREA|코리아|코스피|KOSPI", {"kr": 100}],
+  ["미국|S&P|NASDAQ|나스닥|QQQ|R[UE]SSELL|DOW|다우|Morningstar|INFO TECH|Technology|Tech Sector|SEMICONDUCTOR|PHILX|US EQU|U\\.S\\.|US REIT|TOTAL STOCK|BIOTECH|BANK ETF|KBW|Small.?Cap|빌리어네어|NVIDIA|APPLE|ALPHABET|MICRON|SEAGATE|BROADCOM|MICROSOFT|AMAZON|TESLA|META PLAT|Lam Research|DIVIDEND|Momentum|Clean Edge|GEN AI|AI & Tech|AI Innovation", {"us": 100}],
+  ["글로벌|GLOBAL", "WORLD"]
+ ]
+}
