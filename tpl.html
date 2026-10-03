@@ -212,17 +212,27 @@ function fxBeta(c){
  const ix=y.map((v,i)=>v!=null&&F.every(f=>f[i]!=null)?i:-1).filter(i=>i>=0);if(ix.length<18)return null;
  const r=ols(ix.map(i=>y[i]),ix.map(i=>F.map(f=>f[i])));return r&&isFinite(r[3])?r[3]:null}
 function expo(c){
- if(EXC[c]!==undefined)return EXC[c];let o=null;const Z={kr:0,us:0,ox:0,krb:0,glb:0,gold:0,cash:0};
+ if(EXC[c]!==undefined)return EXC[c];let o=null;const Z={kr:0,us:0,ox:0,dm:0,em:0,gl:0,krb:0,glb:0,gold:0,cash:0};
  if(c.startsWith("M:")){const n=vnote(DV[c]);if(n)o={x:Object.assign(Z,n.x),sec:n.sec,dyn:n.dyn,fx0:n.fx*100}}
- else{const ti=TINFO[c],r=D[c];if(ti&&ti.x)o={x:Object.assign(Z,ti.x),fx0:(/ UH$/.test(r[13])?1:/ H$/.test(r[13])?0.1:ti.fx?0.5:1)*(ti.x.us+ti.x.ox+ti.x.glb+ti.x.gold)}}
+ else{const ti=TINFO[c],r=D[c];if(ti&&ti.x){const x=Object.assign(Z,ti.x);if(ti.x.dm==null)x.gl=x.ox;else x.ox=x.dm+x.em+x.gl;o={x,fx0:(/ UH$/.test(r[13])?1:/ H$/.test(r[13])?0.1:ti.fx?0.5:1)*(x.us+x.ox+x.glb+x.gold)}}}
  if(o){const bt=o.fx0===0&&c.startsWith("M:")?0:fxBeta(c);o.fx=Math.round(bt!=null?Math.max(0,Math.min(100,bt*100)):o.fx0);o.est=bt!=null}
  return EXC[c]=o}
 const xCells=o=>XK.map(([k])=>`<td>${o&&o.x[k]>=0.5?o.x[k].toFixed(0)+"%":"-"}`).join("")+`<td>${o?o.fx+"%":"-"}`;
 const xHead=XK.map(([,n])=>`<th>${n}`).join("")+`<th>환노출`;
+// TDF 구성 비교: 같은 기준(자산군 9개)으로 나눈 막대와 숫자. 색은 자산군마다 고정
+const SEG=[["kr","한국 주식","#2a78d6"],["us","미국 주식","#eb6834"],["dm","선진국 주식(미국 외)","#1baf7a"],["em","신흥국 주식","#eda100"],["gl","글로벌 주식 펀드(지역 미분류)","#e87ba4"],["krb","국내 채권","#008300"],["glb","해외 채권","#4a3aa7"],["gold","금","#e34948"],["cash","현금성","#c3c2b7"]];
+const segBar=o=>o?`<div style="display:flex;gap:2px;width:240px;height:14px">`+SEG.filter(([k])=>o.x[k]>=0.5).map(([k,n,c])=>`<i title="${n} ${o.x[k].toFixed(1)}%" style="flex:${o.x[k]} 1 0;min-width:2px;background:${c};border-radius:2px"></i>`).join("")+`</div>`:"-";
+let fsk=null,fdir=-1;
 function featTable(rows,mode){
- const ord=rows.slice().sort((a,b)=>mode=="co"?a[12]-b[12]||a[13].localeCompare(b[13]):(endRet(b[0],tp)??-1e9)-(endRet(a[0],tp)??-1e9));
- const asof=(rows.map(r=>TINFO[r[0]]).find(x=>x&&x.asof)||{}).asof||"";
- return `<h3 style="margin:22px 0 8px">구성과 특징</h3><div class=wrap><table class=cmp><tr><th>펀드`+xHead+`<th>1년 변동성<th>1년 샤프<th>주요 보유 (%)<th>특징</tr>`+ord.map(r=>{const ti=TINFO[r[0]];return `<tr class="${ME.has(r[0])?"me":""}"><td class=l><span class=tag>${esc(label(r[0],mode))}</span>`+xCells(expo(r[0]))+`<td>${ti&&ti.sd?ti.sd.toFixed(1)+"%":"-"}<td>${ti&&ti.sh!=null?ti.sh.toFixed(2):"-"}<td ${wrapTd(230)}>${ti&&ti.top.length?ti.top.map(esc).join(" · "):"-"}<td ${wrapTd(210)}>${esc(famNote(r[13]))}</tr>`}).join("")+`</table></div><p class=note>자산군 비중은 한국투자증권에 공시된 보유 상위 종목(${asof} 기준, 한두 달 늦게 공시됨)을 이름으로 분류해 추정한 값입니다(상위 10개의 구성 비율을 전체에 적용). 환노출은 최근 3년 월간 수익률이 원/달러 환율에 반응한 정도로 추정했습니다(자료가 짧으면 환헤지 표기로 대신함). 변동성·샤프지수는 최근 1년 연환산(제로인).</p>`}
+ const eqOf=o=>o.x.kr+o.x.us+o.x.dm+o.x.em+o.x.gl,bdOf=o=>o.x.krb+o.x.glb;
+ const COL=[["eq","주식 합계",o=>eqOf(o)],["bd","채권 합계",o=>bdOf(o)],...SEG.map(([k,n])=>[k,n.replace(/\(.*\)/,""),o=>o.x[k]]),["fx","환노출",o=>o.fx]];
+ const val=(r,k)=>{const o=expo(r[0]),ti=TINFO[r[0]];if(k=="sd")return ti&&ti.sd||null;if(k=="sh")return ti&&ti.sh!=null?ti.sh:null;const c=COL.find(x=>x[0]==k);return o&&c?c[2](o):null};
+ const ord=rows.slice().sort(fsk?(a,b)=>{const x=val(a,fsk),y=val(b,fsk);return (x==null)-(y==null)||(x>y?1:x<y?-1:0)*fdir}:(a,b)=>mode=="co"?a[12]-b[12]||a[13].localeCompare(b[13]):(endRet(b[0],tp)??-1e9)-(endRet(a[0],tp)??-1e9));
+ const asof=(rows.map(r=>TINFO[r[0]]).find(x=>x&&x.asof)||{}).asof||"",th=(k,n)=>`<th class=s data-fs="${k}">${n}${k==fsk?(fdir>0?" ▲":" ▼"):""}`;
+ const os=rows.map(r=>expo(r[0])).filter(Boolean),cell=v=>v==null?"-":v>=0.5?v.toFixed(0)+"%":"-";
+ const avg=os.length?{x:Object.fromEntries(SEG.map(([k])=>[k,avgOf(os.map(o=>o.x[k]))])),fx:avgOf(os.map(o=>o.fx))}:null;
+ const line=(o)=>COL.map(c=>`<td>${o?cell(c[2](o)):"-"}`).join("");
+ return `<h3 style="margin:22px 0 8px">구성 비교 <span class=note>같은 기준으로 나눈 자산·지역 비중</span></h3><div style="display:flex;flex-wrap:wrap;gap:4px 14px;margin-bottom:8px;font-size:13px">`+SEG.map(([k,n,c])=>`<span style="display:inline-flex;align-items:center;gap:5px"><i style="width:12px;height:12px;border-radius:2px;background:${c}"></i>${n}</span>`).join("")+`</div><div class=wrap><table class=cmp><tr><th>펀드<th>구성`+COL.map(c=>th(c[0],c[1])).join("")+th("sd","1년 변동성")+th("sh","1년 샤프")+`<th>주요 보유 (%)</tr>`+ord.map(r=>{const ti=TINFO[r[0]],o=expo(r[0]);return `<tr class="${ME.has(r[0])?"me":""}"><td class=l style="white-space:normal;min-width:190px"><span class=tag>${esc(label(r[0],mode))}</span><br><span class=note style="font-size:12px;line-height:1.4">${esc(famNote(r[13]))}</span><td class=l>${segBar(o)}`+line(o)+`<td>${ti&&ti.sd?ti.sd.toFixed(1)+"%":"-"}<td>${ti&&ti.sh!=null?ti.sh.toFixed(2):"-"}<td ${wrapTd(220)}>${ti&&ti.top.length?ti.top.map(esc).join(" · "):"-"}</tr>`}).join("")+(avg?`<tr style="font-weight:600;background:#f3f4f8"><td class=l>평균 (${os.length}개)<td class=l>${segBar(avg)}`+line(avg)+`<td><td><td></tr>`:"")+`</table></div><p class=note>열 제목을 누르면 그 비중 순으로 정렬됩니다. 막대에 마우스를 올리면 자산군과 비중이 나옵니다. 비중은 한국투자증권에 공시된 보유 상위 종목(${asof} 기준, 한두 달 늦게 공시됨)을 이름으로 분류한 추정값으로, 주식·채권 각각 상위 10개의 구성 비율을 전체에 적용했습니다. 전세계 지수 ETF는 미국 63%·선진국 26%·신흥국 11%, 선진국 지수 ETF는 미국 70%·그 외 30%로 나눠 넣었고, 지역을 알 수 없는 해외 액티브 펀드는 "글로벌 주식 펀드"로 따로 두었습니다. 환노출은 최근 3년 월간 수익률이 원/달러 환율에 반응한 정도입니다(자료가 짧으면 환헤지 표기로 대신함). 변동성·샤프지수는 최근 1년 연환산(제로인).</p>`}
 function vfeatTable(rows){
  const asof=(rows.map(r=>VINFO[r[0]]).find(x=>x&&x.asof)||{}).asof||"";
  return `<div class=wrap style="margin-top:10px"><table class=cmp><tr><th>펀드<th>순자산(억)<th>공시 구성 (${asof})`+xHead+`<th>설명</tr>`+rows.map(r=>{const v=VINFO[r[0]],n=vnote(r);return `<tr><td class=l><span class=tag>${esc(r[1])}</span><td>${v?v.aum.toLocaleString():"-"}<td ${wrapTd(150)}>${v?[["국내 주식",v.st],["국내 채권",v.bd],["수익증권",v.fd],["해외",v.ov],["유동성",v.cash]].filter(x=>x[1]>0).map(x=>x[0]+" "+x[1]+"%").join(" · "):"-"}`+xCells(expo(r[0]))+`<td ${wrapTd(260)}>${n?esc(n.d)+(n.sec?" (업종 펀드)":"")+(n.dyn?" (비중 수시 조절)":""):"-"}</tr>`}).join("")+`</table></div><p class=note>순자산과 공시 구성은 메트라이프 공시실 운용현황(월말 기준)입니다. "국내 주식"은 국내에 상장된 주식·ETF라서 해외 지수 ETF가 섞일 수 있습니다. 자산군 비중은 운용설명서의 투자대상·환헤지 방침과 과거 수익률의 지수 민감도로 정리한 추정값이고, 환노출은 최근 3년 월간 수익률이 원/달러 환율에 반응한 정도입니다.</p>`}
@@ -479,8 +489,9 @@ function render(){
 }
 document.addEventListener("click",e=>{
  const g=k=>e.target.closest("["+k+"]");
- const r=g("data-i"),t=g("data-t"),y=g("data-y"),s=g("data-s"),tpp=g("data-tp"),dpp=g("data-dp"),x=g("data-x"),zr=g("data-zr"),cs=g("data-co"),fm=g("data-fam"),vs=g("data-vs"),va=g("data-vall"),vg=g("data-vg"),vp=g("data-vp"),vs2=g("data-vs2"),vr=g("data-vreset"),fx=g("data-fix"),pcm=g("data-pcomp"),pcx=g("data-pcx"),pdm=g("data-pdemo"),pon=g("data-pon"),psel=g("data-psel"),padd=g("data-padd"),pdel=g("data-pdel"),pnorm=g("data-pnorm"),peq=g("data-peq"),prm=g("data-prm"),ru=g("data-ru"),rft=g("data-rfeat"),rg=g("data-rvg");
- if(ru){rUnit=ru.dataset.ru;rKey="";render()}
+ const r=g("data-i"),t=g("data-t"),y=g("data-y"),s=g("data-s"),tpp=g("data-tp"),dpp=g("data-dp"),x=g("data-x"),zr=g("data-zr"),cs=g("data-co"),fm=g("data-fam"),vs=g("data-vs"),va=g("data-vall"),vg=g("data-vg"),vp=g("data-vp"),vs2=g("data-vs2"),vr=g("data-vreset"),fx=g("data-fix"),pcm=g("data-pcomp"),pcx=g("data-pcx"),pdm=g("data-pdemo"),pon=g("data-pon"),psel=g("data-psel"),padd=g("data-padd"),pdel=g("data-pdel"),pnorm=g("data-pnorm"),peq=g("data-peq"),prm=g("data-prm"),fs=g("data-fs"),ru=g("data-ru"),rft=g("data-rfeat"),rg=g("data-rvg");
+ if(fs){const k=fs.dataset.fs;fdir=k==fsk?-fdir:-1;fsk=k;render()}
+ else if(ru){rUnit=ru.dataset.ru;rKey="";render()}
  else if(rft){rFeat=!rFeat;render()}
  else if(rg){rvg=rg.dataset.rvg;render()}
  else if(vg){vgf=vg.dataset.vg;render()}
