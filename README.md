@@ -29,3 +29,5 @@ GitHub에서 `lineup.json` → 연필(Edit) 아이콘 → 수정 → Commit. 저
 - 운용사별 특징 문구는 	df-notes.json에서 고칩니다. 상품군 이름의 앞부분이 일치하면 적용됩니다.
 - TDF 기간 리포트 탭의 설명 문장은 수익률과 공시 자료로 자동 계산됩니다.
 
+- 리포트의 시장 배경(환율·지수·금리·금)은 같은 계정의 `claude_drive` 저장소 `data/long_term/*.csv`, `data/history.csv`를 읽어 씁니다. 변액 기간 리포트도 같은 방식입니다.
+

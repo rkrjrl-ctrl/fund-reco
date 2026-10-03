@@ -51,6 +51,17 @@ async function chart(p) {
   const d = [...m.keys()].sort();
   return { d, c: d.map(x => m.get(x)), b: [] };
 }
+// 경제 지표(같은 계정의 claude_drive 저장소가 매일 수집): 리포트의 시장 배경 설명에 사용. 실패해도 갱신은 계속
+async function indicators(keys) {
+  const base = 'https://raw.githubusercontent.com/rkrjrl-ctrl/claude_drive/main/data/';
+  const txt = async f => retry(async () => { const r = await fetch(base + f, { headers: UA }); if (!r.ok) throw new Error(f + ' ' + r.status); return r.text(); }, 3);
+  const ok = v => v != null && v !== '' && !isNaN(+v);
+  const out = {};
+  for (const k of keys) { out[k] = new Map(); for (const l of (await txt('long_term/' + k + '.csv')).split('\n').slice(1)) { const [d, v] = l.trim().split(','); if (d && ok(v)) out[k].set(d.replace(/-/g, ''), +v); } }
+  const h = (await txt('history.csv')).split('\n').map(l => l.trim().split(',')), head = h[0];
+  for (const row of h.slice(1)) for (const k of keys) { const i = head.indexOf(k); if (i > 0 && row[0] && ok(row[i])) out[k].set(row[0].replace(/-/g, ''), +row[i]); }
+  return out;
+}
 // TDF 구성·위험 지표(주식·채권 비중, 주요 보유, 환헤지 포지션, 1년 변동성·샤프)
 async function tdfInfo(p) {
   const html = await post(KIS + '/main/mall/openfund/FundInfo_Pop.jsp?cmd=A_FP_20280_1', { cmd: 'A_FP_20280_1', pdno: p, pfundCd: p, fundCd: p });
@@ -152,6 +163,12 @@ async function main() {
     }
     F[p] = arr; packV(p, arr, x => String(Math.round(x * 10) / 10));
   }
+  // 경제 지표를 같은 날짜 축에 맞춰 싣는다(I:usdkrw 등, 값이 없는 날은 직전 값)
+  try {
+    const IND = await indicators(['usdkrw', 'sp500', 'nasdaq', 'kospi', 'us_10y', 'kr_10y', 'gold']);
+    for (const k in IND) { const e = [...IND[k]].sort((a, b) => a[0].localeCompare(b[0])); let j = 0, last = null; if (e.length < 100) continue;
+      packV('I:' + k, axis.map(d => { while (j < e.length && e[j][0] <= d) last = e[j++][1]; return last; }), x => String(x)); }
+  } catch (e) { log('WARN 경제 지표 ' + e.message); }
   // 3) 행
   const R_TDF = tdfRows.filter(d => S[d.PDNO]).map(d => [...rowBase(d), +d.PRDT_NAME.match(/20[2-7][05]/)[0], famOf(d)]);
   R_TDF.sort((a, b) => a[12] - b[12] || a[2].localeCompare(b[2]) || a[13].localeCompare(b[13]));
@@ -190,11 +207,14 @@ async function main() {
   const have = new Set([...R_TDF, ...R_EXTRA].map(r => r[0]));
   const miss = ITEMS.map(i => i.코드).filter(c => !have.has(c)); if (miss.length) throw new Error('라인업 코드를 찾지 못함(코드/검색어 확인): ' + miss.join(','));
   // 6) 검증: 그래프 수익률과 공식 수치가 맞는지(1·3·6개월, 1·3년)
-  let bad = 0, cnt = 0, bad2 = 0, cnt2 = 0;
+  let bad = 0, cnt = 0, bad2 = 0, cnt2 = 0, fixed = 0;
   for (const r of [...R_TDF, ...R_EXTRA.filter(x => S[x[0]])]) for (const [col, p] of [[4, 1], [5, 3], [6, 6], [7, 12], [8, 36]]) {
-    if (r[col] == null || !F[r[0]]) continue; const g = periodRet(axis, F[r[0]], END, p); if (g == null) continue; if (col === 6 || col === 8) { cnt2++; if (Math.abs(g - r[col]) > 0.1) bad2++; continue; } cnt++; if (Math.abs(g - r[col]) > 0.1) bad++;
+    if (r[col] == null || !F[r[0]]) continue; const g = periodRet(axis, F[r[0]], END, p); if (g == null) continue;
+    // 한국투자증권 표의 값이 하루 전 기준일로 남아 있는 경우(주로 3년): 같은 산식의 오늘 기준 값으로 바꿔 그래프와 맞춘다
+    if (Math.abs(g - r[col]) > 0.1) { const g1 = periodRet(axis, F[r[0]], axis[axis.length - 2], p); if (g1 != null && Math.abs(g1 - r[col]) <= 0.1) { r[col] = r2(g); fixed++; } }
+    if (col === 6 || col === 8) { cnt2++; if (Math.abs(g - r[col]) > 0.1) bad2++; continue; } cnt++; if (Math.abs(g - r[col]) > 0.1) bad++;
   }
-  log(`검증 ${cnt}건 중 불일치 ${bad}건 / 6개월·3년 ${cnt2}건 중 ${bad2}건`);
+  log(`검증 ${cnt}건 중 불일치 ${bad}건 / 6개월·3년 ${cnt2}건 중 ${bad2}건 / 전일 기준값 보정 ${fixed}건`);
   if (cnt > 0 && bad / cnt > 0.03) throw new Error('그래프와 공식 수익률 불일치가 많아 갱신을 중단합니다');
   // 7) 페이지 생성
   const asof = `${END.slice(0, 4)}-${END.slice(4, 6)}-${END.slice(6, 8)}`;
