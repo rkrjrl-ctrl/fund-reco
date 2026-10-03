@@ -5,7 +5,8 @@
 body{font:15px/1.5 'Malgun Gothic',sans-serif;margin:0;background:#f5f6fa;color:#222}
 main{max-width:1320px;margin:auto;padding:12px 8px}
 table.cmp th{padding:8px 4px;font-size:13px;white-space:normal;line-height:1.25}table.cmp td{padding:7px 4px;font-size:14px}table.cmp .tag{white-space:nowrap}
-nav{display:flex;gap:4px;margin-bottom:16px;flex-wrap:wrap}
+nav{display:flex;gap:4px;margin-bottom:0;flex-wrap:wrap;border-bottom:3px solid #1f2560}
+#sub{margin:10px 0 16px;min-height:8px}
 nav a{padding:10px 20px;background:#dde;color:#1f2560;border-radius:6px 6px 0 0;cursor:pointer}
 nav a.on{background:#1f2560;color:#fff}
 table{width:100%;border-collapse:collapse;background:#fff;margin-bottom:24px}
@@ -43,7 +44,7 @@ td.k{background:#f0f1f8;font-weight:bold;text-align:left;white-space:nowrap}
 .hint{font-size:12px;color:#666;margin-left:auto}
 .hint a{padding:2px 10px;font-size:12px}
 </style></head><body><main>
-<nav><a data-t="home">추천 라인업</a><a data-t="tdf">빈티지별 비교</a><a data-t="co">운용사별 비교</a><a data-t="rep">TDF 기간 리포트</a><a data-t="var">변액 펀드 비교</a><a data-t="vrep">변액 기간 리포트</a><a data-t="sim">조합 시뮬레이터</a></nav>
+<nav id=top><a data-t="home" data-g="home">추천 라인업</a><a data-t="tdf" data-g="tdf">TDF</a><a data-t="var" data-g="var">변액</a></nav><div id=sub class=tog></div>
 <div id="v"></div>
 <p class="note">출처: 한국투자증권 펀드 검색·상세(온라인 판매 클래스, 연금저축 C-Pe 클래스 기준, 기준일 @@ASOF@@, 그래프는 분배금 반영 수정기준가로 표의 기간수익률과 같은 기준일·산식), FunETF(미래 퇴직연금배당·인컴주는 월배당), 메트라이프생명 공시실(변액보험 기준가 현황), 미래에셋자산운용·한국투자신탁운용 공식 상품 페이지(보수·보유종목). 수익률은 누적(%), 설정액은 펀드 전체 기준(억원). 그래프는 영업일 단위 기준가입니다. 과거 수익률은 미래 수익을 보장하지 않습니다. 자동 갱신: @@UPDATED@@</p>
 </main>
@@ -224,7 +225,7 @@ function featTable(rows,mode){
  return `<h3 style="margin:22px 0 8px">구성과 특징</h3><div class=wrap><table class=cmp><tr><th>펀드`+xHead+`<th>1년 변동성<th>1년 샤프<th>주요 보유 (%)<th>특징</tr>`+ord.map(r=>{const ti=TINFO[r[0]];return `<tr class="${ME.has(r[0])?"me":""}"><td class=l><span class=tag>${esc(label(r[0],mode))}</span>`+xCells(expo(r[0]))+`<td>${ti&&ti.sd?ti.sd.toFixed(1)+"%":"-"}<td>${ti&&ti.sh!=null?ti.sh.toFixed(2):"-"}<td ${wrapTd(230)}>${ti&&ti.top.length?ti.top.map(esc).join(" · "):"-"}<td ${wrapTd(210)}>${esc(famNote(r[13]))}</tr>`}).join("")+`</table></div><p class=note>자산군 비중은 한국투자증권에 공시된 보유 상위 종목(${asof} 기준, 한두 달 늦게 공시됨)을 이름으로 분류해 추정한 값입니다(상위 10개의 구성 비율을 전체에 적용). 환노출은 최근 3년 월간 수익률이 원/달러 환율에 반응한 정도로 추정했습니다(자료가 짧으면 환헤지 표기로 대신함). 변동성·샤프지수는 최근 1년 연환산(제로인).</p>`}
 function vfeatTable(rows){
  const asof=(rows.map(r=>VINFO[r[0]]).find(x=>x&&x.asof)||{}).asof||"";
- return `<h3 style="margin:22px 0 8px">구성과 특징</h3><div class=wrap><table class=cmp><tr><th>펀드<th>순자산(억)<th>공시 구성 (${asof})`+xHead+`<th>설명</tr>`+rows.map(r=>{const v=VINFO[r[0]],n=vnote(r);return `<tr><td class=l><span class=tag>${esc(r[1])}</span><td>${v?v.aum.toLocaleString():"-"}<td ${wrapTd(150)}>${v?[["국내 주식",v.st],["국내 채권",v.bd],["수익증권",v.fd],["해외",v.ov],["유동성",v.cash]].filter(x=>x[1]>0).map(x=>x[0]+" "+x[1]+"%").join(" · "):"-"}`+xCells(expo(r[0]))+`<td ${wrapTd(260)}>${n?esc(n.d)+(n.sec?" (업종 펀드)":"")+(n.dyn?" (비중 수시 조절)":""):"-"}</tr>`}).join("")+`</table></div><p class=note>순자산과 공시 구성은 메트라이프 공시실 운용현황(월말 기준)입니다. "국내 주식"은 국내에 상장된 주식·ETF라서 해외 지수 ETF가 섞일 수 있습니다. 자산군 비중은 운용설명서의 투자대상·환헤지 방침과 과거 수익률의 지수 민감도로 정리한 추정값이고, 환노출은 최근 3년 월간 수익률이 원/달러 환율에 반응한 정도입니다.</p>`}
+ return `<div class=wrap style="margin-top:10px"><table class=cmp><tr><th>펀드<th>순자산(억)<th>공시 구성 (${asof})`+xHead+`<th>설명</tr>`+rows.map(r=>{const v=VINFO[r[0]],n=vnote(r);return `<tr><td class=l><span class=tag>${esc(r[1])}</span><td>${v?v.aum.toLocaleString():"-"}<td ${wrapTd(150)}>${v?[["국내 주식",v.st],["국내 채권",v.bd],["수익증권",v.fd],["해외",v.ov],["유동성",v.cash]].filter(x=>x[1]>0).map(x=>x[0]+" "+x[1]+"%").join(" · "):"-"}`+xCells(expo(r[0]))+`<td ${wrapTd(260)}>${n?esc(n.d)+(n.sec?" (업종 펀드)":"")+(n.dyn?" (비중 수시 조절)":""):"-"}</tr>`}).join("")+`</table></div><p class=note>순자산과 공시 구성은 메트라이프 공시실 운용현황(월말 기준)입니다. "국내 주식"은 국내에 상장된 주식·ETF라서 해외 지수 ETF가 섞일 수 있습니다. 자산군 비중은 운용설명서의 투자대상·환헤지 방침과 과거 수익률의 지수 민감도로 정리한 추정값이고, 환노출은 최근 3년 월간 수익률이 원/달러 환율에 반응한 정도입니다.</p>`}
 // 기간 요인 수익률(%): 지수는 등락률, 채권은 (시작 금리×기간 − 듀레이션×금리 변화) 근사
 function factors(s,e){const g=k=>perEnds("I:"+k,s,e),r=x=>x?(x[1]/x[0]-1)*100:null,yrs=(e-s+1)/365,ku=g("kr_10y"),uu=g("us_10y");
  return {kr:r(g("kospi")),us:r(g("sp500")),gold:r(g("gold")),fx:r(g("usdkrw")),krb:ku?ku[0]*yrs-5*(ku[1]-ku[0]):null,glb:uu?uu[0]*yrs-6*(uu[1]-uu[0]):null}}
@@ -363,7 +364,7 @@ function variable(){
  ord.map(r=>{const c=r[0],s=rs[c];return `<tr><td class=l><span class=tag>${esc(r[1])}</span>`+
   (s?`<td>${pct(s.tot)}<td>${s.ann==null?"-":pct(s.ann)}<td>${s.vol.toFixed(1)}%<td>${pct(s.mdd)}`:`<td>-<td>-<td>-<td>-`)+
   VPERS.slice(0,5).map(([m])=>`<td>${pct(retP(c,m))}`).join("")+`<td>${pct(endRet(c,999))}<td class=l>${s?`<span class=bar style="width:${Math.abs(s.tot)/mxv*70}px;background:${s.tot>=0?"#e57373":"#64b5f6"}"></span>${s.late?`<span class=note>(${dstr(s.late)} 설정)</span>`:""}`:"-"}</tr>`}).join("")+`</table></div>`;
- return h+`<p class=note>총 ${rows.length}개. 열 제목을 누르면 정렬됩니다. 맨 오른쪽 5개 열은 구간과 상관없이 현재(${dstr(DMAX)}) 기준 기간수익률입니다. 같은 이름의 펀드도 상품 버전(1호·2호·3호)에 따라 별개 펀드입니다. 기준가는 특별계정(펀드) 기준가로 보험 사업비·위험보험료·세금은 반영되지 않은 값입니다.</p>`+vfeatTable(ord);
+ return h+`<p class=note>총 ${rows.length}개. 열 제목을 누르면 정렬됩니다. 맨 오른쪽 5개 열은 구간과 상관없이 현재(${dstr(DMAX)}) 기준 기간수익률입니다. 같은 이름의 펀드도 상품 버전(1호·2호·3호)에 따라 별개 펀드입니다. 기준가는 특별계정(펀드) 기준가로 보험 사업비·위험보험료·세금은 반영되지 않은 값입니다. 펀드별 투자 대상과 자산 구성은 "구성·특징" 화면에 있습니다.</p>`;
 }
 // ───────── 조합 시뮬레이터(일시금 + 적립식, 조합 여러 개) ─────────
 let PORTS=[{id:1,name:"조합 1",w:{},on:true}],selP=1,pSeq=1,sSpan="120",sStart="",sReb="n",sInit="1000",sMon="",sMths="",sComp=false;
@@ -462,12 +463,18 @@ document.addEventListener("change",e=>{const id=e.target.id;
  else if(id=="rsel"){rKey=e.target.value;render()}
  else if(id=="vat"){vat=e.target.value;vs="";ve="";render()}else if(id=="vs"){vs=e.target.value;render()}else if(id=="ve"){ve=e.target.value;render()}});
 let LASTTAB="";
+const TABS={home:[["home","추천 라인업"]],tdf:[["tdf","빈티지별 비교"],["co","운용사별 비교"],["rep","기간 리포트"]],var:[["var","펀드 비교"],["vinfo","구성·특징"],["vrep","기간 리포트"],["sim","조합 시뮬레이터"]]};
+// 변액 펀드 구성·특징(유형별, 순자산 큰 순)
+function vinfo(){const rows=R_VAR.filter(r=>rvg=="전체"||r[2]==rvg).sort((a,b)=>((VINFO[b[0]]||{}).aum||0)-((VINFO[a[0]]||{}).aum||0));
+ return `<h2>변액 펀드 구성·특징 <span class=note>— 메트라이프 변액 펀드의 투자 대상, 자산 구성, 환노출</span></h2><div class=tog><b>유형</b>`+VGRP.map(g=>`<a data-rvg="${g}" class="${g==rvg?"on":""}">${g}</a>`).join("")+`</div>`+vfeatTable(rows)}
 function render(){
  const [t,i]=(location.hash.slice(1)||"home").split("/");
  if(t!=LASTTAB){sk=null;dir=-1;vsk=null;LASTTAB=t}
  for(const k in CFG)delete CFG[k];
- document.querySelectorAll("nav a").forEach(a=>a.classList.toggle("on",a.dataset.t==(t=="detail"?"home":t)));
- $("#v").innerHTML=t=="detail"?detail(i):t=="tdf"?tdf():t=="co"?co():t=="rep"?report("tdf"):t=="vrep"?report("var"):t=="var"?variable():t=="sim"?sim():home();
+ const grp=Object.keys(TABS).find(k=>TABS[k].some(x=>x[0]==t))||"home";
+ document.querySelectorAll("nav a").forEach(a=>a.classList.toggle("on",a.dataset.g==grp));
+ $("#sub").innerHTML=TABS[grp].length>1?TABS[grp].map(([k,n])=>`<a data-t="${k}" class="${k==t?"on":""}">${n}</a>`).join(""):"";
+ $("#v").innerHTML=t=="detail"?detail(i):t=="tdf"?tdf():t=="co"?co():t=="rep"?report("tdf"):t=="vrep"?report("var"):t=="vinfo"?vinfo():t=="var"?variable():t=="sim"?sim():home();
  drawAll();
 }
 document.addEventListener("click",e=>{
