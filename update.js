@@ -57,11 +57,14 @@ async function indicators(keys) {
   const txt = async f => retry(async () => { const r = await fetch(base + f, { headers: UA }); if (!r.ok) throw new Error(f + ' ' + r.status); return r.text(); }, 3);
   const ok = v => v != null && v !== '' && !isNaN(+v);
   const out = {};
-  for (const k of keys) { out[k] = new Map(); for (const l of (await txt('long_term/' + k + '.csv')).split('\n').slice(1)) { const [d, v] = l.trim().split(','); if (d && ok(v)) out[k].set(d.replace(/-/g, ''), +v); } }
+  for (const k of keys) { out[k] = new Map(); let t = ''; try { t = await txt('long_term/' + k + '.csv'); } catch (e) { continue; }   // 저장소에 없는 지표(야후에서만 받는 것)는 건너뜀
+    for (const l of t.split('\n').slice(1)) { const [d, v] = l.trim().split(','); if (d && ok(v)) out[k].set(d.replace(/-/g, ''), +v); } }
   // 저장소의 일별 수집분(history.csv)은 '수집한 날짜'로 찍혀 있어 수집 시각에 따라 전날 값이 들어간다.
   // 그래서 최근 구간은 실제 거래일 기준인 야후 일별 종가로 덮어쓰고, 야후에 없는 지표(한국 금리 등)나 야후 조회 실패 때만 history.csv를 쓴다.
-  const YT = { kospi: '^KS11', sp500: '^GSPC', nasdaq: '^IXIC', usdkrw: 'KRW=X', us_10y: '^TNX', gold: 'GC=F', stoxx50: '^STOXX50E', nikkei: '^N225', shanghai: '000001.SS', hsi: '^HSI', nifty: '^NSEI', vix: '^VIX' };
-  const yahoo = async t => { const r = await fetch('https://query1.finance.yahoo.com/v8/finance/chart/' + encodeURIComponent(t) + '?range=2y&interval=1d', { headers: UA }); if (!r.ok) throw new Error('yahoo ' + t + ' ' + r.status); const res = (await r.json()).chart.result[0], ts = res.timestamp, cl = res.indicators.quote[0].close, off = res.meta.gmtoffset || 0, m = new Map(); ts.forEach((x, i) => { if (cl[i] != null) m.set(new Date((x + off) * 1000).toISOString().slice(0, 10).replace(/-/g, ''), cl[i]); }); if (m.size < 200) throw new Error('yahoo ' + t + ' 자료 부족'); return m; };
+  const YT = { kospi: '^KS11', sp500: '^GSPC', nasdaq: '^IXIC', usdkrw: 'KRW=X', us_10y: '^TNX', gold: 'GC=F', stoxx50: '^STOXX50E', nikkei: '^N225', shanghai: '000001.SS', hsi: '^HSI', nifty: '^NSEI', vix: '^VIX',
+    // 리포트의 지역·업종·스타일 분석용(ETF는 분배금 반영 수정주가)
+    ashr: 'ASHR', eem: 'EEM', ndx: '^NDX', sox: '^SOX', rut: '^RUT', iwf: 'IWF', iwd: 'IWD', ksemi: '091160.KS', kosdaq: '^KQ11' };
+  const yahoo = async t => { const r = await fetch('https://query1.finance.yahoo.com/v8/finance/chart/' + encodeURIComponent(t) + '?range=10y&interval=1d', { headers: UA }); if (!r.ok) throw new Error('yahoo ' + t + ' ' + r.status); const res = (await r.json()).chart.result[0], ts = res.timestamp, cl = (res.indicators.adjclose && res.indicators.adjclose[0] && res.indicators.adjclose[0].adjclose) || res.indicators.quote[0].close, off = res.meta.gmtoffset || 0, m = new Map(); ts.forEach((x, i) => { if (cl[i] != null) m.set(new Date((x + off) * 1000).toISOString().slice(0, 10).replace(/-/g, ''), cl[i]); }); if (m.size < 200) throw new Error('yahoo ' + t + ' 자료 부족'); return m; };
   const done = new Set();
   for (const k of keys) if (YT[k]) { try { const m = await retry(() => yahoo(YT[k]), 2), d0 = [...m.keys()].sort()[0]; for (const d of [...out[k].keys()]) if (d >= d0) out[k].delete(d); for (const [d, v] of m) out[k].set(d, v); done.add(k); await sleep(200); } catch (e) { log('WARN 지표 ' + k + ' 실제 거래일 자료 조회 실패(' + e.message + '), 저장소 수집분 사용'); } }
   const h = (await txt('history.csv')).split('\n').map(l => l.trim().split(',')), head = h[0];
@@ -187,7 +190,7 @@ async function main() {
   }
   // 경제 지표를 같은 날짜 축에 맞춰 싣는다(I:usdkrw 등, 값이 없는 날은 직전 값)
   try {
-    const IND = await indicators(['usdkrw', 'sp500', 'nasdaq', 'kospi', 'us_10y', 'kr_10y', 'gold', 'stoxx50', 'nikkei', 'shanghai', 'hsi', 'nifty', 'vix']);
+    const IND = await indicators(['usdkrw', 'sp500', 'nasdaq', 'kospi', 'us_10y', 'kr_10y', 'gold', 'stoxx50', 'nikkei', 'shanghai', 'hsi', 'nifty', 'vix', 'ashr', 'eem', 'ndx', 'sox', 'rut', 'iwf', 'iwd', 'ksemi', 'kosdaq']);
     for (const k in IND) { const e = [...IND[k]].sort((a, b) => a[0].localeCompare(b[0])); let j = 0, last = null; if (e.length < 100) continue;
       packV('I:' + k, axis.map(d => { while (j < e.length && e[j][0] <= d) last = e[j++][1]; return last; }), x => String(Math.round(x * 1000) / 1000)); }
   } catch (e) { log('WARN 경제 지표 ' + e.message); }

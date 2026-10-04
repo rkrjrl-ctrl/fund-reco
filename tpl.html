@@ -253,57 +253,71 @@ function vfeatTable(rows){
 // 기간 요인 수익률(%): 지수는 등락률, 채권은 (시작 금리×기간 − 듀레이션×금리 변화) 근사
 function factors(s,e){const g=k=>perEnds("I:"+k,s,e),r=x=>x?(x[1]/x[0]-1)*100:null,yrs=(e-s+1)/365,ku=g("kr_10y"),uu=g("us_10y");
  const sh=r(g("shanghai")),hs=r(g("hsi"));
- return {kr:r(g("kospi")),us:r(g("sp500")),eu:r(g("stoxx50")),jp:r(g("nikkei")),cn:sh!=null&&hs!=null?(sh+hs)/2:sh??hs,in:r(g("nifty")),gold:r(g("gold")),fx:(a=>a.length?avgOf(a):null)([0,1].map(L=>r(perEndsL("I:usdkrw",s,e,L))).filter(x=>x!=null)),krb:ku?ku[0]*yrs-5*(ku[1]-ku[0]):null,glb:uu?uu[0]*yrs-6*(uu[1]-uu[0]):null}}
-const FNM={kr:["한국 주식","코스피"],us:["미국 주식","S&P500"],eu:["유럽 주식","유로스톡스50"],jp:["일본 주식","닛케이225"],cn:["중국 주식","상해·항셍 평균"],in:["인도 주식","니프티50"],krb:["국내채권","국내 채권 가격"],glb:["해외채권","해외 채권 가격(달러)"],gold:["금","금값"],fx:["환노출","원/달러 환율"]};
+ return {kr:r(g("kospi")),us:r(g("sp500")),eu:r(g("stoxx50")),jp:r(g("nikkei")),cn:hs,cna:r(g("ashr")),in:r(g("nifty")),em:r(g("eem")),gold:r(g("gold")),fx:(a=>a.length?avgOf(a):null)([0,1].map(L=>r(perEndsL("I:usdkrw",s,e,L))).filter(x=>x!=null)),krb:ku?ku[0]*yrs-5*(ku[1]-ku[0]):null,glb:uu?uu[0]*yrs-6*(uu[1]-uu[0]):null}}
+const FNM={kr:["한국 주식","코스피"],us:["미국 주식","S&P500"],eu:["유럽 주식","유로스톡스50"],jp:["일본 주식","닛케이225"],cn:["중국 주식(홍콩)","항셍지수"],cna:["중국 본토 주식","중국 본토 주가"],in:["인도 주식","니프티50"],em:["신흥국 주식","신흥국 주가"],krb:["국내채권","국내 채권 가격"],glb:["해외채권","해외 채권 가격(달러)"],gold:["금","금값"],fx:["환노출","원/달러 환율"]};
 // 펀드별로 '또래 평균 대비 비중 차이 × 요인 수익률'을 계산해 순위 이유를 만든다
-// ── 기간별 자산 몫(%) ──
+// ── 기간별 자산 몫(%)과 쏠림 ──
 // 공시된 구성은 '지금' 것이라 지난 기간을 설명하면 틀린다(검증: 2025년 TDF 순위를 지금 구성으로 설명하면 방향이 반대로 나옴).
-// 그래서 기간 리포트는 '그 기간에 펀드 값이 각 자산을 얼마나 따라 움직였는지'로 몫을 계산한다(일간 수익률 회귀).
-// 어떤 자산을 후보로 볼지는 공시·설명서 구성(3% 이상)으로 정하고 한국 주식·미국 주식·환율은 항상 후보에 넣는다.
-// 통계적으로 뚜렷하지 않은 자산(추정값이 오차의 2배 미만)은 빼고 다시 계산해, 우연히 나온 숫자를 이유로 쓰지 않는다.
+// 그래서 기간 리포트는 '그 기간에 펀드 값이 각 자산을 얼마나 따라 움직였는지'로 몫을 계산한다(일간 수익률 회귀, 2단계).
+//  1단계(자산 배분): 한국 주식·미국 주식·환율 + 공시·설명서에 3% 이상 있는 자산(유럽·일본·중국·신흥국·채권·금).
+//  2단계(업종·스타일 쏠림): 1단계로 설명되지 않은 부분을 기술주·반도체·작은 회사·가치주·국내 반도체·코스닥이 '시장 평균보다 얼마나 더 움직였는지'로 다시 나눈다.
+// 통계적으로 뚜렷하지 않은 항목(자산 배분은 추정값이 오차의 2배 미만, 쏠림은 3배 미만)은 빼고 다시 계산해, 우연히 나온 숫자를 이유로 쓰지 않는다.
 // 지수가 펀드 값에 반영되는 날: 국내(코스피·한국 금리)는 당일~이틀, 해외(주가·금·미국 금리)는 하루~사흘 늦음(일간 상관으로 확인).
-const PF={kr:["kospi",[0,1,2]],us:["sp500",[1,2,3]],eu:["stoxx50",[1,2,3]],jp:["nikkei",[1,2,3]],cn:["hsi",[1,2,3]],in:["nifty",[1,2,3]],gold:["gold",[1,2,3]],glb:["us_10y",[1,2,3],6],krb:["kr_10y",[0,1,2],5],fx:["usdkrw",[0,1,2]]};
+const PF={kr:["kospi",[0,1,2]],us:["sp500",[1,2,3]],eu:["stoxx50",[1,2,3]],jp:["nikkei",[1,2,3]],cn:["hsi",[1,2,3]],cna:["ashr",[1,2,3]],in:["nifty",[1,2,3]],em:["eem",[1,2,3]],gold:["gold",[1,2,3]],glb:["us_10y",[1,2,3],6],krb:["kr_10y",[0,1,2],5],fx:["usdkrw",[0,1,2]]};
+// 쏠림: [앞 지표, 비교 지표, 시차들, 기간 수익률 계산용 시차]
+const TF={tech:["ndx","sp500",[1,2,3],2],semi:["sox","sp500",[1,2,3],2],small:["rut","sp500",[1,2,3],2],value:["iwd","iwf",[1,2,3],2],ksemi:["ksemi","kospi",[0,1,2],1],kosdaq:["kosdaq","kospi",[0,1,2],1]};
+const TN={tech:["미국 기술주 쏠림","미국 기술주(나스닥100)가 미국 주식 전체보다"],semi:["반도체 쏠림","반도체 주식이 미국 주식 전체보다"],small:["미국 작은 회사 쏠림","미국의 작은 회사 주식이 큰 회사 주식보다"],value:["가치주 쏠림","가치주가 성장주보다"],ksemi:["국내 반도체 쏠림","국내 반도체 주식이 코스피보다"],kosdaq:["코스닥 쏠림","코스닥이 코스피보다"]};
 // 최소제곱 + 계수의 공분산(오차 크기)
 function olsCov(y,X){const n=y.length,p=X[0].length+1,A=Array.from({length:p},()=>new Array(2*p).fill(0)),g=new Array(p).fill(0);
  for(let i=0;i<n;i++){const r=[1,...X[i]];for(let a=0;a<p;a++){g[a]+=r[a]*y[i];for(let b=0;b<p;b++)A[a][b]+=r[a]*r[b]}}
  for(let a=0;a<p;a++)A[a][p+a]=1;
  for(let c=0;c<p;c++){let m=c;for(let r=c+1;r<p;r++)if(Math.abs(A[r][c])>Math.abs(A[m][c]))m=r;[A[c],A[m]]=[A[m],A[c]];const d=A[c][c];if(Math.abs(d)<1e-14)return null;for(let k=0;k<2*p;k++)A[c][k]/=d;for(let r=0;r<p;r++)if(r!=c){const f=A[r][c];if(f)for(let k=0;k<2*p;k++)A[r][k]-=f*A[c][k]}}
- const inv=A.map(r=>r.slice(p)),b=inv.map(r=>r.reduce((s,v,j)=>s+v*g[j],0));let sse=0;for(let i=0;i<n;i++){const r=[1,...X[i]];let f=0;for(let a=0;a<p;a++)f+=b[a]*r[a];sse+=(y[i]-f)**2}
- return {b,inv,s2:sse/Math.max(1,n-p),n}}
+ const inv=A.map(r=>r.slice(p)),b=inv.map(r=>r.reduce((s,v,j)=>s+v*g[j],0)),res=new Array(n);let sse=0;for(let i=0;i<n;i++){const r=[1,...X[i]];let f=0;for(let a=0;a<p;a++)f+=b[a]*r[a];res[i]=y[i]-f;sse+=res[i]**2}
+ return {b,inv,s2:sse/Math.max(1,n-p),n,res}}
+// 항목별 값(시차 세 개의 계수 합)과 그 표준오차
+const sumSe=(r,ks)=>ks.map((k,j)=>{const ix=[1+j*3,2+j*3,3+j*3];let v=0,sv=0;for(const p of ix){v+=r.b[p];for(const q of ix)sv+=r.inv[p][q]}return [k,v,Math.sqrt(Math.max(0,sv*r.s2))]});
 const PEC={};
 function pexpo(c,s,e){
  const key=c+"|"+s+"|"+e;if(PEC[key]!==undefined)return PEC[key];
  const base=expo(c),a=NAV.v[c];let out=base;
- if(a){const i1=iBefore(e),i0=Math.min(iBefore(s-1),i1-125);
-  const build=ks=>{const y=[],M=[];for(let i=Math.max(6,i0+1);i<=i1;i++){if(a[i]==null||a[i-1]==null)continue;const row=[];let ok=true;
-    for(const k of ks){const [n,ls,D]=PF[k],arr=NAV.v["I:"+n];for(const l of ls){const p=arr[i-1-l],q=arr[i-l];if(p==null||q==null){ok=false;break}row.push(D?-(q-p)*D/100:q/p-1)}if(!ok)break}
-    if(!ok)continue;y.push(a[i]/a[i-1]-1);M.push(row)}return [y,M]};
-  const isV=c.startsWith("M:"),core=k=>!isV&&(k=="kr"||k=="us"||k=="fx");
-  let ks=Object.keys(PF).filter(k=>NAV.v["I:"+PF[k][0]]&&(core(k)||(base&&(k=="fx"?base.fx0>0:(base.x[k]||0)>=3)))),fit=null,val={};
-  for(let it=0;it<6&&ks.length;it++){const [y,M]=build(ks);if(y.length<60||y.length<ks.length*10){const k2=ks.filter(core);if(k2.length==ks.length||!k2.length)break;ks=k2;continue}
-   const r=olsCov(y,M);if(!r)break;
-   // 자산별 몫 = 시차 세 개의 계수 합, 오차 = 그 합의 표준오차
-   const st=ks.map((k,j)=>{const ix=[1+j*3,2+j*3,3+j*3];let v=0,sv=0;for(const p of ix){v+=r.b[p];for(const q of ix)sv+=r.inv[p][q]}return [k,v,Math.sqrt(Math.max(0,sv*r.s2))]});
-   const weak=st.filter(z=>z[1]<=0||z[1]<2*z[2]).sort((p,q)=>p[1]/(p[2]||1e-9)-q[1]/(q[2]||1e-9));
-   if(!weak.length){fit=r;st.forEach(z=>val[z[0]]=z[1]*100);break}
+ if(a){const i1=iBefore(e),i0=Math.min(iBefore(s-1),i1-125),days=[];for(let i=Math.max(6,i0+1);i<=i1;i++)if(a[i]!=null&&a[i-1]!=null)days.push(i);
+  const isV=c.startsWith("M:"),core=k=>!isV&&(k=="kr"||k=="us"||k=="fx"),bw=k=>base?(k=="cna"?base.x.cn:k=="em"?(base.x.oth||0)+(base.x.in||0):base.x[k])||0:0,need={cn:10,cna:10,em:10,eu:5,jp:5,in:5};
+  // 1단계
+  const col1=(k,i)=>{const [n,ls,D]=PF[k],arr=NAV.v["I:"+n],o=[];for(const l of ls){const p=arr[i-1-l],q=arr[i-l];if(p==null||q==null)return null;o.push(D?-(q-p)*D/100:q/p-1)}return o};
+  const build=(ks,col,yv)=>{const y=[],M=[],ix=[];days.forEach((i,j)=>{const row=[];for(const k of ks){const o=col(k,i);if(!o)return;row.push(...o)}y.push(yv?yv[j]:a[i]/a[i-1]-1);M.push(row);ix.push(j)});return [y,M,ix]};
+  let ks=Object.keys(PF).filter(k=>NAV.v["I:"+PF[k][0]]&&(core(k)||(k=="fx"?base&&base.fx0>0:bw(k)>=(need[k]||3)))),fit=null,val={},fitIx=null;
+  for(let it=0;it<10&&ks.length;it++){const [y,M,ix]=build(ks,col1);if(y.length<60||y.length<ks.length*10){const k2=ks.filter(core);if(k2.length==ks.length||!k2.length)break;ks=k2;continue}
+   const r=olsCov(y,M);if(!r)break;const st=sumSe(r,ks),weak=st.filter(z=>z[1]<=0||z[1]<2*z[2]).sort((p,q)=>p[1]/(p[2]||1e-9)-q[1]/(q[2]||1e-9));
+   if(!weak.length){fit=r;fitIx=ix;st.forEach(z=>val[z[0]]=z[1]*100);break}
    ks=ks.filter(k=>k!=weak[0][0])}
-  if(fit){const x={kr:0,us:0,eu:0,jp:0,cn:0,in:0,oth:0,gl:0,ox:0,krb:0,glb:0,gold:0,cash:0};let fx=0;
+  if(fit){const x={kr:0,us:0,eu:0,jp:0,cn:0,cna:0,in:0,em:0,oth:0,gl:0,ox:0,krb:0,glb:0,gold:0,cash:0};let fx=0;
    for(const k in val){if(k=="fx")fx=Math.min(100,val[k]);else x[k]=Math.min(100,val[k])}
-   x.ox=x.eu+x.jp+x.cn+x.in;x.cash=Math.max(0,100-(x.kr+x.us+x.ox+x.krb+x.glb+x.gold));
-   out={x,fx,sec:base&&base.sec,dyn:base&&base.dyn,est:true,per:true,n:fit.n}}}
+   x.ox=x.eu+x.jp+x.cn+x.cna+x.in+x.em;x.cash=Math.max(0,100-(x.kr+x.us+x.ox+x.krb+x.glb+x.gold));
+   // 2단계: 1단계에서 남은 부분을 쏠림으로 (음수도 뜻이 있다: 평균보다 덜 담은 것)
+   const t={},resAll=new Array(days.length).fill(null);fitIx.forEach((j,q)=>resAll[j]=fit.res[q]);
+   const col2=(k,i)=>{const [p1,p2,ls]=TF[k],A=NAV.v["I:"+p1],B=NAV.v["I:"+p2],o=[];if(!A||!B)return null;for(const l of ls){const a0=A[i-1-l],a1=A[i-l],b0=B[i-1-l],b1=B[i-l];if(a0==null||a1==null||b0==null||b1==null)return null;o.push(a1/a0-b1/b0)}return o};
+   let ts=Object.keys(TF).filter(k=>NAV.v["I:"+TF[k][0]]&&NAV.v["I:"+TF[k][1]]&&((k=="ksemi"||k=="kosdaq")?x.kr>=5:x.us>=5||(base&&base.sec)));
+   for(let it=0;it<8&&ts.length;it++){const y=[],M=[];days.forEach((i,j)=>{if(resAll[j]==null)return;const row=[];for(const k of ts){const o=col2(k,i);if(!o)return;row.push(...o)}y.push(resAll[j]);M.push(row)});
+    if(y.length<60||y.length<ts.length*10)break;const r=olsCov(y,M);if(!r)break;const st=sumSe(r,ts),weak=st.filter(z=>Math.abs(z[1])<3*z[2]).sort((p,q)=>Math.abs(p[1])/(p[2]||1e-9)-Math.abs(q[1])/(q[2]||1e-9));
+    if(!weak.length){st.forEach(z=>t[z[0]]=Math.max(-100,Math.min(100,z[1]*100)));break}
+    ts=ts.filter(k=>k!=weak[0][0])}
+   out={x,fx,t,sec:base&&base.sec,dyn:base&&base.dyn,est:true,per:true,n:fit.n}}}
  return PEC[key]=out}
+// 쏠림 지표가 기간 동안 시장 평균보다 얼마나 더(덜) 올랐는지(%p)
+function tiltF(s,e){const o={};for(const k in TF){const [p1,p2,,L]=TF[k],A=perEndsL("I:"+p1,s,e,L),B=perEndsL("I:"+p2,s,e,L);o[k]=A&&B?(A[1]/A[0]-B[1]/B[0])*100:null}return o}
 // 쉬운 말 이름(순위 이유 문장용)
-const PN={kr:"한국 주식",us:"미국 주식",eu:"유럽 주식",jp:"일본 주식",cn:"중국 주식",in:"인도 주식",krb:"국내 채권",glb:"해외 채권",gold:"금",fx:"환율 영향을 그대로 받는"};
+const PN={kr:"한국 주식",us:"미국 주식",eu:"유럽 주식",jp:"일본 주식",cn:"중국 주식(홍콩)",cna:"중국 본토 주식",in:"인도 주식",em:"신흥국 주식",krb:"국내 채권",glb:"해외 채권",gold:"금",fx:"환율 영향을 그대로 받는"};
 function attrib(rr,s,e){
  const F=factors(s,e),ks=Object.keys(FNM).filter(k=>F[k]!=null),E=rr.map(x=>pexpo(x[0][0],s,e)),ok=E.filter(Boolean);if(ok.length<2||!ks.length)return rr.map(()=>null);
  const w=(o,k)=>k=="fx"?o.fx:o.x[k]||0,aw={};ks.forEach(k=>aw[k]=avgOf(ok.map(o=>w(o,k))));
- const safe=o=>o.x.krb+o.x.glb+o.x.cash,asafe=avgOf(ok.map(safe)),rest=o=>o.x.oth+o.x.gl,aox=avgOf(ok.map(rest)),ar=avgOf(rr.filter((x,i)=>E[i]).map(x=>x[1]));
+ const safe=o=>o.x.krb+o.x.glb+o.x.cash,asafe=avgOf(ok.map(safe)),rest=o=>o.x.oth+o.x.gl,aox=avgOf(ok.map(rest)),TFv=tiltF(s,e),tw=(o,k)=>(o.t&&o.t[k])||0,tks=Object.keys(TF).filter(k=>TFv[k]!=null&&ok.some(o=>tw(o,k))),taw={};tks.forEach(k=>taw[k]=avgOf(ok.map(o=>tw(o,k)))),ar=avgOf(rr.filter((x,i)=>E[i]).map(x=>x[1]));
  return rr.map((x,i)=>{const o=E[i];if(!o)return null;const rel=x[1]-ar,d=ks.map(k=>({k,w:w(o,k),aw:aw[k],f:F[k],v:(w(o,k)-aw[k])*F[k]/100}));
+  for(const k of tks)d.push({k:"t:"+k,t:k,w:tw(o,k),aw:taw[k],f:TFv[k],v:(tw(o,k)-taw[k])*TFv[k]/100});
   const est=d.reduce((a,z)=>a+z.v,0),res=rel-est,pick=d.filter(z=>rel>=0?z.v>=0.15:z.v<=-0.15).sort((p,q)=>rel>=0?q.v-p.v:p.v-q.v).slice(0,2).filter((z,i,a)=>i==0||Math.abs(z.v)>=0.25*Math.abs(a[0].v)),out=[];
   const pp=v=>(v>0?"+":"")+v.toFixed(1)+"%p";
-  for(const z of pick){const hi=z.w>=z.aw,up=z.f>=0;out.push(`<b>${PN[z.k]} 몫이 평균보다 ${hi?"큽니다":"작습니다"}</b>(이 펀드 ${z.w.toFixed(0)}%, 평균 ${z.aw.toFixed(0)}%). ${FNM[z.k][1]} ${sgn(z.f)} ${up?"상승":"하락"}${z.k=="fx"?(z.f<0?"(원화 값이 오름)":"(원화 값이 내림)"):""}으로 ${hi?(up?"그만큼 더 벌었습니다":"그만큼 더 잃었습니다"):(up?"그만큼 덜 벌었습니다":"그만큼 덜 잃었습니다")} (약 ${pp(z.v)}).`)}
+  for(const z of pick){const hi=z.w>=z.aw,up=z.f>=0;if(z.t){out.push(`<b>${TN[z.t][0]}이 평균보다 ${hi?"큽니다":"작습니다"}</b>. ${TN[z.t][1]} ${Math.abs(z.f).toFixed(2)}%p ${up?"더 올라서(또는 덜 내려서)":"덜 올라서(또는 더 내려서)"} 그만큼 ${z.v>0?"유리했습니다":"불리했습니다"} (약 ${pp(z.v)}).`);continue}out.push(`<b>${PN[z.k]} 몫이 평균보다 ${hi?"큽니다":"작습니다"}</b>(이 펀드 ${z.w.toFixed(0)}%, 평균 ${z.aw.toFixed(0)}%). ${FNM[z.k][1]} ${sgn(z.f)} ${up?"상승":"하락"}${z.k=="fx"?(z.f<0?"(원화 값이 오름)":"(원화 값이 내림)"):""}으로 ${hi?(up?"그만큼 더 벌었습니다":"그만큼 더 잃었습니다"):(up?"그만큼 덜 벌었습니다":"그만큼 덜 잃었습니다")} (약 ${pp(z.v)}).`)}
   const sf=safe(o);if(Math.abs(sf-asafe)>=10&&F.kr!=null&&F.us!=null){const eqf=(F.kr+F.us)/2;if(Math.abs(eqf)>=2&&(sf>asafe)==(rel>=0)==(eqf<0))out.push(`채권·현금처럼 <b>덜 흔들리는 자산의 몫이 평균보다 ${sf>asafe?"큽니다":"작습니다"}</b>(이 펀드 ${sf.toFixed(0)}%, 평균 ${asafe.toFixed(0)}%).`)}
-  if(Math.abs(res)>=Math.max(0.7,0.5*Math.abs(rel))&&(res>=0)==(rel>=0))out.push(o.sec?`<b>${o.sec} 업종</b>의 주가 움직임이 큰 영향을 줬습니다 (약 ${pp(res)}).`:rest(o)>=Math.max(20,aox+10)?`지수 자료가 없는 <b>기타 지역 주식을 많이 담아</b>(이 펀드 ${rest(o).toFixed(0)}%, 평균 ${aox.toFixed(0)}%) 그 지역 성적의 영향을 받았습니다 (약 ${pp(res)}).`:o.dyn?`기간 중에 담는 비율을 바꾼 효과입니다 (약 ${pp(res)}).`:`<b>어떤 종목·업종을 골랐는지</b>에서 생긴 차이입니다 (약 ${pp(res)}).`);
+  if(Math.abs(res)>=Math.max(0.7,0.5*Math.abs(rel))&&(res>=0)==(rel>=0))out.push(o.sec?`<b>${o.sec} 업종</b>의 주가 움직임이 큰 영향을 줬습니다 (약 ${pp(res)}).`:rest(o)>=Math.max(20,aox+10)?`지수 자료가 없는 <b>기타 지역 주식을 많이 담아</b>(이 펀드 ${rest(o).toFixed(0)}%, 평균 ${aox.toFixed(0)}%) 그 지역 성적의 영향을 받았습니다 (약 ${pp(res)}).`:o.dyn?`기간 중에 담는 비율을 바꾼 효과입니다 (약 ${pp(res)}).`:`위 항목들로 설명되지 않는 <b>개별 종목 선택·비용</b>에서 생긴 차이입니다 (약 ${pp(res)}).`);
   if(!out.length)out.push(Math.abs(rel)<0.3?`자산별 몫도 성적도 또래 평균과 비슷했습니다.`:`자산별 몫보다 <b>어떤 종목을 골랐는지</b>가 성적을 갈랐습니다.`);
   return {out,rel,est,res,d}})}
 let rUnit="M",rKey="",rFeat=false,rvg="전체";
@@ -316,7 +330,7 @@ function repPeriods(u,codes){const m=UN[u][1],out=[],e=new Date(DMAX*864e5);let 
   if(--k<0){k=12/m-1;y--}}return out}
 // 기간 수익률: 직전 기간 마지막 기준가 → 이 기간 마지막 기준가
 // 펀드 기준가는 지수를 늦게 반영한다(일간 수익률 상관으로 확인): 코스피·한국 금리는 1영업일, 해외 지수·금·미국 금리는 2영업일 늦게. 환율은 당일과 하루 전에 나뉘어 반영
-const ILAG={kospi:1,kr_10y:1,usdkrw:0};
+const ILAG={kospi:1,kr_10y:1,usdkrw:0,ksemi:1,kosdaq:1};
 const perEndsL=(c,s,e,L)=>{const a=NAV.v[c];if(!a)return null;const i=iBefore(s-1);if(NAV.n[i]>s-1)return null;const b=a[Math.max(0,i-L)],z=a[Math.max(0,iBefore(e)-L)];return b==null||z==null?null:[b,z]};
 const perEnds=(c,s,e)=>perEndsL(c,s,e,c.startsWith("I:")?(ILAG[c.slice(2)]??2):0);
 const perRet=(c,s,e)=>{const x=perEnds(c,s,e);return x?(x[1]/x[0]-1)*100:null};
@@ -338,20 +352,35 @@ function levels(e){const i=iBefore(e),o={},ser=k=>NAV.v["I:"+k];
  const ma=k=>{const a=ser(k);if(!a||a[i]==null)return null;const m=avgBack(a,Math.max(0,i-199));return (a[i]/m-1)*100};
  o.maKr=ma("kospi");o.maUs=ma("sp500");return o}
 function analyst(T,scope,lab,rr,AT,s,e,style,ex,nm,X){
- const F=factors(s,e),N=rr.length,av=avgOf(rr.map(x=>x[1])),sp=rr[0][1]-rr[N-1][1],ok=AT.filter(Boolean);
+ const F=factors(s,e),TFv=tiltF(s,e),N=rr.length,av=avgOf(rr.map(x=>x[1])),sp=rr[0][1]-rr[N-1][1],ok=AT.filter(Boolean);
  const who=T?scope.replace(" 빈티지","년 은퇴 목표 TDF"):scope,updn=v=>v>=0?"올랐습니다":"내렸습니다",pp=v=>(v>0?"+":"")+v.toFixed(1)+"%p";
  // 펀드끼리 성적이 달랐던 이유를 항목별로 나눈 크기(항목별 영향의 흩어진 정도)
  const ks=ok.length?ok[0].d.map(z=>z.k):[],sdv=k=>{const v=ok.map(a=>a.d.find(z=>z.k==k).v),m=avgOf(v);return Math.sqrt(avgOf(v.map(x=>(x-m)**2)))};
  const resSd=ok.length?Math.sqrt(avgOf(ok.map(a=>a.res**2))):0,drv=ks.map(k=>[k,sdv(k)]).sort((a,b)=>b[1]-a[1]),tot=(drv.reduce((a,x)=>a+x[1],0)+resSd)||1,d0=drv[0];
- const DN={fx:"환율 영향을 받는 정도",kr:"한국 주식을 담은 양",us:"미국 주식을 담은 양",eu:"유럽 주식을 담은 양",jp:"일본 주식을 담은 양",cn:"중국 주식을 담은 양",in:"인도 주식을 담은 양",krb:"국내 채권을 담은 양",glb:"해외 채권을 담은 양",gold:"금을 담은 양"};
+ const DN={fx:"환율 영향을 받는 정도",kr:"한국 주식을 담은 양",us:"미국 주식을 담은 양",eu:"유럽 주식을 담은 양",jp:"일본 주식을 담은 양",cn:"중국(홍콩) 주식을 담은 양",cna:"중국 본토 주식을 담은 양",in:"인도 주식을 담은 양",em:"신흥국 주식을 담은 양",krb:"국내 채권을 담은 양",glb:"해외 채권을 담은 양",gold:"금을 담은 양"};
  const HL={fx:f=>f<0?"원화 값이 올라, 환율 영향을 막아 둔 펀드가 앞섰습니다":"원화 값이 내려, 환율 영향을 그대로 받는 펀드가 앞섰습니다",kr:f=>f>=0?"한국 주식이 올라, 한국 주식을 많이 담은 펀드가 앞섰습니다":"한국 주식이 내려, 한국 주식을 적게 담은 펀드가 덜 잃었습니다",us:f=>f>=0?"미국 주식이 올라, 미국 주식을 많이 담은 펀드가 앞섰습니다":"미국 주식이 내려, 미국 주식을 많이 담은 펀드가 뒤처졌습니다",krb:f=>f>=0?"국내 채권 값이 올라, 채권을 많이 담은 펀드가 유리했습니다":"국내 금리가 올라 채권 값이 내렸고, 채권을 많이 담은 펀드가 불리했습니다",glb:f=>f>=0?"해외 채권 값이 올라, 채권을 많이 담은 펀드가 유리했습니다":"미국 금리가 올라 채권 값이 내렸고, 해외 채권을 많이 담은 펀드가 불리했습니다",gold:f=>f>=0?"금값이 올라, 금을 담은 펀드가 돋보였습니다":"금값이 내려, 금을 담은 펀드가 불리했습니다"};
  const main=!d0||sp<1.5?"small":resSd>d0[1]*1.5?"pick":d0[0];
- const head=main=="small"?`펀드마다 성적이 비슷했습니다 (1위와 꼴찌 차이 ${sp.toFixed(1)}%p)`:main=="pick"?"무엇을 얼마나 담았는지보다, 어떤 종목을 골랐는지가 순위를 갈랐습니다":HL[main]?HL[main](F[main]):`${PN[main]}이 ${F[main]>=0?"올라":"내려"} 순위에 영향을 줬습니다`;
+ const head=main=="small"?`펀드마다 성적이 비슷했습니다 (1위와 꼴찌 차이 ${sp.toFixed(1)}%p)`:main=="pick"?"자산을 어떻게 나눴는지보다, 어떤 종목을 골랐는지가 순위를 갈랐습니다":main.startsWith("t:")?`${TN[main.slice(2)][1]} ${TFv[main.slice(2)]>=0?"앞섰고":"뒤처졌고"}, 그쪽으로 얼마나 기울었는지가 순위를 갈랐습니다`:HL[main]?HL[main](F[main]):`${PN[main]}이 ${F[main]>=0?"올라":"내려"} 순위에 영향을 줬습니다`;
  // 핵심 요약
  const fx=perEnds("I:usdkrw",s,e),sum=[`${who} ${N}개의 평균 수익률은 <b>${sgn(av)}</b>입니다.`];
- if(main!="small"&&main!="pick")sum.push(main=="fx"&&fx?`1달러 값이 ${Math.round(fx[0]).toLocaleString()}원에서 ${Math.round(fx[1]).toLocaleString()}원으로 ${F.fx<0?"내렸습니다":"올랐습니다"}. 그래서 해외 자산을 원화로 바꾼 값이 ${F.fx<0?"줄었습니다":"늘었습니다"}.`:`${FNM[main][1]} ${sgn(F[main])} 움직임이 펀드끼리의 성적을 가장 크게 갈랐습니다.`);
+ if(main!="small"&&main!="pick"&&!main.startsWith("t:"))sum.push(main=="fx"&&fx?`1달러 값이 ${Math.round(fx[0]).toLocaleString()}원에서 ${Math.round(fx[1]).toLocaleString()}원으로 ${F.fx<0?"내렸습니다":"올랐습니다"}. 그래서 해외 자산을 원화로 바꾼 값이 ${F.fx<0?"줄었습니다":"늘었습니다"}.`:`${FNM[main][1]} ${sgn(F[main])} 움직임이 펀드끼리의 성적을 가장 크게 갈랐습니다.`);
  sum.push(`1위는 ${nm(rr[0])}(${sgn(rr[0][1])}), 꼴찌는 ${nm(rr[N-1])}(${sgn(rr[N-1][1])})입니다.`);
  const tbl=(hd,rows)=>`<div class=wrap><table class=cmp><tr>${hd.map(x=>`<th>${x}`).join("")}</tr>${rows.join("")}</table></div>`;
+ const PE=c=>pexpo(c,s,e),E=rr.map(x=>[x,PE(x[0][0])]).filter(y=>y[1]);
+ const wOf=(o,k)=>k=="fx"?o.fx:k=="safe"?o.x.krb+o.x.glb+o.x.cash:k=="oeq"?o.x.in+o.x.oth+o.x.gl:k=="bond"?o.x.krb+o.x.glb:o.x[k];
+ // ── 왜 올랐나/내렸나: 평균적인 펀드의 수익률을 자산별로 나눠 보기(담은 비율 × 그 자산의 등락) ──
+ const AK=["kr","us","eu","jp","cn","cna","in","em","krb","glb","gold","fx"].filter(k=>F[k]!=null),TK=Object.keys(TF).filter(k=>TFv[k]!=null&&E.some(y=>y[1].t&&y[1].t[k]));
+ const AN={kr:"한국 주식",us:"미국 주식",eu:"유럽 주식",jp:"일본 주식",cn:"중국 주식(홍콩)",cna:"중국 본토 주식",in:"인도 주식",em:"신흥국 주식",krb:"국내 채권",glb:"해외 채권",gold:"금",fx:"환율"};for(const k in TN)AN["t:"+k]=TN[k][0];
+ const partsOf=o=>[...AK.map(k=>[k,wOf(o,k)*F[k]/100,wOf(o,k)]),...TK.map(k=>["t:"+k,((o.t&&o.t[k])||0)*TFv[k]/100,(o.t&&o.t[k])||0])];
+ const allocOf=o=>AK.reduce((a,k)=>a+wOf(o,k)*F[k]/100,0);
+ const won=v=>(v>=0?"+":"−")+Math.abs(Math.round(v*10000)).toLocaleString()+"원";
+ let whyAbs="",absHead="";
+ if(E.length&&AK.length){const avgO={x:Object.fromEntries(Object.keys(E[0][1].x).map(k=>[k,avgOf(E.map(y=>y[1].x[k]||0))])),fx:avgOf(E.map(y=>y[1].fx)),t:Object.fromEntries(TK.map(k=>[k,avgOf(E.map(y=>(y[1].t&&y[1].t[k])||0))]))};
+  const pa=partsOf(avgO).sort((a,b)=>Math.abs(b[1])-Math.abs(a[1])),big=pa.filter(z=>Math.abs(z[1])>=0.2).slice(0,5),rest=av-big.reduce((a,z)=>a+z[1],0);
+  const m=pa.find(z=>!z[0].startsWith("t:")&&(z[1]>=0)==(av>=0)&&Math.abs(z[1])>=0.2)||pa.find(z=>!z[0].startsWith("t:"))||pa[0];
+  absHead=!m?"":m[0]=="fx"?(m[1]<0?"원화 값이 올라 해외 자산을 원화로 바꾼 값이 줄었기 때문입니다":"원화 값이 내려 해외 자산을 원화로 바꾼 값이 늘었기 때문입니다"):m[0]=="krb"||m[0]=="glb"?(m[1]<0?"금리가 올라 채권 값이 내렸기 때문입니다":"채권에서 이자와 값 상승으로 벌었기 때문입니다"):`${AN[m[0]]}${m[1]>=0?"이 오른 덕분입니다":"이 내렸기 때문입니다"}`;
+  const say=([k,c,w])=>k.startsWith("t:")?`<b>${TN[k.slice(2)][0]}</b> — ${TN[k.slice(2)][1]} ${Math.abs(TFv[k.slice(2)]).toFixed(2)}%p ${TFv[k.slice(2)]>=0?"더 올랐습니다(또는 덜 내렸습니다)":"덜 올랐습니다(또는 더 내렸습니다)"}. 펀드들은 평균적으로 이쪽으로 ${w>=0?"기울어":"반대로 기울어"} 있었습니다.`:k=="fx"?`<b>환율</b> — 1달러 값이 ${sgn(F.fx)} ${F.fx<0?"내려서":"올라서"}, 해외 자산을 원화로 바꾼 값이 ${F.fx<0?"줄었습니다":"늘었습니다"}. 펀드들은 평균적으로 자산의 ${w.toFixed(0)}%가 환율 영향을 그대로 받았습니다.`:k=="krb"||k=="glb"?`<b>${AN[k]}</b> — ${c<0?(k=="krb"?"한국":"미국")+" 금리가 올라 채권 값이 내렸습니다":"이자가 쌓이고 채권 값이 버텨 보탬이 됐습니다"}. 펀드들에서 이 자산의 몫은 평균 ${w.toFixed(0)}%였습니다.`:`<b>${AN[k]}</b> — ${FNM[k][1]} ${sgn(F[k])} ${F[k]>=0?"상승":"하락"}. 펀드들에서 이 자산의 몫은 평균 ${w.toFixed(0)}%였습니다.`;
+  whyAbs=`<p style="margin:0 0 6px">평균적인 펀드에 <b>100만 원</b>을 넣었다면 <b>${Math.round(1e6*(1+av/100)).toLocaleString()}원</b>이 됐습니다(${sgn(av)}). ${av>=0?"오른":"내린"} 까닭을 큰 것부터 나눠 보면 이렇습니다.</p>`+tbl(["까닭","수익률에 준 영향","100만 원 기준"],[...big.map(z=>`<tr><td class=l style="white-space:normal;min-width:300px">${say(z)}<td><span class="${z[1]>=0?"pos":"neg"}">${pp(z[1])}</span><td>${won(z[1])}</tr>`),`<tr><td class=l>그 밖 (개별 종목 선택, 비용, 여기 없는 자산 등)<td><span class="${rest>=0?"pos":"neg"}">${pp(rest)}</span><td>${won(rest)}</tr>`,`<tr style="font-weight:700;background:#f3f4f8"><td class=l>모두 더하면<td>${pp(av)}<td>${won(av)}</tr>`])+`<p class=note style="margin:6px 0 0">"영향"은 펀드들이 그 자산을 평균 얼마나 담았는지에 그 자산이 오르내린 정도를 곱한 값입니다. <b>자산의 몫은 이렇게 구했습니다:</b> 지금 공개된 구성은 지난 기간과 다를 수 있어서, 그 기간에 펀드 값이 각 자산을 얼마나 따라 움직였는지로 계산했습니다${(n=>n?"(하루하루의 움직임 약 "+n+"일 치)":"")(Math.max(0,...E.map(y=>y[1].n||0)))}. <b>이 계산의 정확도:</b> 같은 방법으로 펀드 ${E.length}개의 수익률을 하나씩 계산해 실제와 비교하면 평균 ${avgOf(E.map(y=>Math.abs(y[0][1]-partsOf(y[1]).reduce((p,z)=>p+z[1],0)))).toFixed(1)}%p 차이가 납니다. 이 차이는 "그 밖"으로 따로 적었습니다(종목 선택, 비용, 여기서 보지 않는 자산). 시장 숫자는 펀드 값에 실제로 반영되는 날에 맞췄습니다: 한국 주식·금리는 하루 전, 해외 주식·금·미국 금리는 이틀 전 값입니다.</p>`}
  // ── 1. 시장 (+ 지난번과 비교) ──
  const eqs=[["us","미국"],["eu","유럽"],["jp","일본"],["cn","중국"],["in","인도"]].filter(([k])=>F[k]!=null),ga=avgOf(eqs.map(([k])=>F[k]));
  let p1=eqs.length?`해외 주식은 ${eqs.map(([k,n])=>n+" "+sgn(F[k])).join(", ")}였습니다. ${ga>3?"대체로 올랐습니다.":ga<-3?"대체로 내렸습니다.":"오른 곳과 내린 곳이 섞였습니다."} `:"";
@@ -368,23 +397,18 @@ function analyst(T,scope,lab,rr,AT,s,e,style,ex,nm,X){
   mk=`<p style="margin:10px 0 4px"><b>지난번(${X.prev[1]})과 나란히 보면</b></p>`+tbl(["무엇이","이번","지난번","풀이"],[...R,rt("미국 금리(10년)",uu,u2),rt("한국 금리(10년)",ku,k2)])}
  // ── 2. 왜 갈렸나 (이유 막대) ──
  let p3="";
- if(ok.length&&d0&&main!="small"){const parts=drv.filter(x=>x[1]/tot>=0.08).slice(0,3).map(x=>[DN[x[0]]||PN[x[0]],x[1]/tot*100,`${FNM[x[0]][1]} ${sgn(F[x[0]])}`]);parts.push(["어떤 종목·업종을 골랐는지",resSd/tot*100,""]);parts.sort((a,b)=>b[1]-a[1]);
+ if(ok.length&&d0&&main!="small"){const parts=drv.filter(x=>x[1]/tot>=0.06).slice(0,5).map(x=>x[0].startsWith("t:")?[TN[x[0].slice(2)][0],x[1]/tot*100,`${TN[x[0].slice(2)][1]} ${(TFv[x[0].slice(2)]>=0?"+":"")+TFv[x[0].slice(2)].toFixed(2)}%p`]:[DN[x[0]]||PN[x[0]],x[1]/tot*100,`${FNM[x[0]][1]} ${sgn(F[x[0]])}`]);parts.push(["개별 종목 선택·비용 (위 항목으로 설명 안 되는 부분)",resSd/tot*100,""]);parts.sort((a,b)=>b[1]-a[1]);
   p3=`<div style="margin:6px 0 10px">`+parts.map(x=>`<div style="display:flex;align-items:center;gap:8px;margin:3px 0"><span style="min-width:210px">${x[0]}</span><span style="display:inline-block;height:12px;border-radius:2px;background:#2a78d6;width:${x[1]*2.2}px"></span><b>약 ${x[1].toFixed(0)}%</b><span class=note>${x[2]}</span></div>`).join("")+`</div>`}
+ // ── 종목·업종 선택을 자료로 나눠 보기: 실제 수익률 = 자산 배분 + 쏠림들 + 나머지 ──
+ let selT="";
+ if(E.length){const cols=TK.filter(k=>E.some(y=>Math.abs(((y[1].t&&y[1].t[k])||0)*TFv[k]/100)>=0.05));
+  const rowsS=E.map(y=>{const o=y[1],al=allocOf(o),tv=cols.map(k=>((o.t&&o.t[k])||0)*TFv[k]/100),rs=y[0][1]-al-TK.reduce((a,k)=>a+((o.t&&o.t[k])||0)*TFv[k]/100,0);return [y[0],al,tv,rs]});
+  const cl=v=>`<td><span class="${v>0.05?"pos":v<-0.05?"neg":""}">${Math.abs(v)<0.05?"-":pp(v)}</span>`;
+  selT=`<p style="margin:0 0 6px">각 펀드의 수익률을 ① 자산을 어떻게 나눴는지(주식·채권·나라·환율) ② 어느 업종·종류에 기울었는지 ③ 그래도 남는 부분(개별 종목 선택·비용)으로 나눴습니다. 기울기는 그 기간 펀드 값의 하루하루 움직임으로 계산했고, 통계로 뚜렷한 것만 적었습니다.</p>`+
+   (cols.length?`<p class=note style="margin:0 0 6px">이 기간: `+cols.map(k=>`${TN[k][1]} ${(TFv[k]>=0?"+":"")+TFv[k].toFixed(2)}%p`).join(" · ")+`</p>`:"")+
+   tbl(["펀드","실제 수익률","① 자산 배분",...cols.map(k=>"② "+TN[k][0]),"③ 나머지(종목 선택·비용)"],rowsS.map(([x,al,tv,rs])=>`<tr class="${X.isMe(x[0])?"me":""}"><td class=l><span class=tag>${nm(x)}</span><td>${pct(x[1])}${cl(al)}${tv.map(cl).join("")}${cl(rs)}</tr>`))+
+   `<p class=note style="margin:6px 0 0">가로로 더하면 실제 수익률이 됩니다. "-"는 그쪽으로 기운 것이 통계로 뚜렷하지 않다는 뜻입니다. ③이 크면 지수나 업종으로는 설명되지 않는, 그 펀드만의 종목 선택(또는 비용) 때문입니다.</p>`}
  // ── 3. 무엇을 많이 담았느냐에 따른 성적 비교(많이 담은 절반 vs 적게 담은 절반) ──
- const PE=c=>pexpo(c,s,e),E=rr.map(x=>[x,PE(x[0][0])]).filter(y=>y[1]);
- const wOf=(o,k)=>k=="fx"?o.fx:k=="safe"?o.x.krb+o.x.glb+o.x.cash:k=="oeq"?o.x.in+o.x.oth+o.x.gl:k=="bond"?o.x.krb+o.x.glb:o.x[k];
- // ── 왜 올랐나/내렸나: 평균적인 펀드의 수익률을 자산별로 나눠 보기(담은 비율 × 그 자산의 등락) ──
- const AK=["kr","us","eu","jp","cn","in","krb","glb","gold","fx"].filter(k=>F[k]!=null);
- const AN={kr:"한국 주식",us:"미국 주식",eu:"유럽 주식",jp:"일본 주식",cn:"중국 주식",in:"인도 주식",krb:"국내 채권",glb:"해외 채권",gold:"금",fx:"환율"};
- const partsOf=o=>AK.map(k=>[k,wOf(o,k)*F[k]/100,wOf(o,k)]);
- const won=v=>(v>=0?"+":"−")+Math.abs(Math.round(v*10000)).toLocaleString()+"원";
- let whyAbs="",absHead="";
- if(E.length&&AK.length){const avgO={x:Object.fromEntries(Object.keys(E[0][1].x).map(k=>[k,avgOf(E.map(y=>y[1].x[k]))])),fx:avgOf(E.map(y=>y[1].fx))};
-  const pa=partsOf(avgO).sort((a,b)=>Math.abs(b[1])-Math.abs(a[1])),big=pa.filter(z=>Math.abs(z[1])>=0.2).slice(0,5),rest=av-big.reduce((a,z)=>a+z[1],0);
-  const m=pa.find(z=>(z[1]>=0)==(av>=0)&&Math.abs(z[1])>=0.2)||pa[0];
-  absHead=!m?"":m[0]=="fx"?(m[1]<0?"원화 값이 올라 해외 자산을 원화로 바꾼 값이 줄었기 때문입니다":"원화 값이 내려 해외 자산을 원화로 바꾼 값이 늘었기 때문입니다"):m[0]=="krb"||m[0]=="glb"?(m[1]<0?"금리가 올라 채권 값이 내렸기 때문입니다":"채권에서 이자와 값 상승으로 벌었기 때문입니다"):`${AN[m[0]]}${m[1]>=0?"이 오른 덕분입니다":"이 내렸기 때문입니다"}`;
-  const say=([k,c,w])=>k=="fx"?`<b>환율</b> — 1달러 값이 ${sgn(F.fx)} ${F.fx<0?"내려서":"올라서"}, 해외 자산을 원화로 바꾼 값이 ${F.fx<0?"줄었습니다":"늘었습니다"}. 펀드들은 평균적으로 자산의 ${w.toFixed(0)}%가 환율 영향을 그대로 받았습니다.`:k=="krb"||k=="glb"?`<b>${AN[k]}</b> — ${c<0?(k=="krb"?"한국":"미국")+" 금리가 올라 채권 값이 내렸습니다":"이자가 쌓이고 채권 값이 버텨 보탬이 됐습니다"}. 펀드들에서 이 자산의 몫은 평균 ${w.toFixed(0)}%였습니다.`:`<b>${AN[k]}</b> — ${FNM[k][1]} ${sgn(F[k])} ${F[k]>=0?"상승":"하락"}. 펀드들에서 이 자산의 몫은 평균 ${w.toFixed(0)}%였습니다.`;
-  whyAbs=`<p style="margin:0 0 6px">평균적인 펀드에 <b>100만 원</b>을 넣었다면 <b>${Math.round(1e6*(1+av/100)).toLocaleString()}원</b>이 됐습니다(${sgn(av)}). ${av>=0?"오른":"내린"} 까닭을 큰 것부터 나눠 보면 이렇습니다.</p>`+tbl(["까닭","수익률에 준 영향","100만 원 기준"],[...big.map(z=>`<tr><td class=l style="white-space:normal;min-width:300px">${say(z)}<td><span class="${z[1]>=0?"pos":"neg"}">${pp(z[1])}</span><td>${won(z[1])}</tr>`),`<tr><td class=l>그 밖 (어떤 종목을 골랐는지, 비용, 여기 없는 자산 등)<td><span class="${rest>=0?"pos":"neg"}">${pp(rest)}</span><td>${won(rest)}</tr>`,`<tr style="font-weight:700;background:#f3f4f8"><td class=l>모두 더하면<td>${pp(av)}<td>${won(av)}</tr>`])+`<p class=note style="margin:6px 0 0">"영향"은 펀드들이 그 자산을 평균 얼마나 담았는지에 그 자산이 오르내린 정도를 곱한 값입니다. <b>자산의 몫은 이렇게 구했습니다:</b> 지금 공개된 구성은 지난 기간과 다를 수 있어서, 그 기간에 펀드 값이 각 자산을 얼마나 따라 움직였는지로 계산했습니다${(n=>n?"(하루하루의 움직임 약 "+n+"일 치)":"")(Math.max(0,...E.map(y=>y[1].n||0)))}. <b>이 계산의 정확도:</b> 같은 방법으로 펀드 ${E.length}개의 수익률을 하나씩 계산해 실제와 비교하면 평균 ${avgOf(E.map(y=>Math.abs(y[0][1]-partsOf(y[1]).reduce((p,z)=>p+z[1],0)))).toFixed(1)}%p 차이가 납니다. 이 차이는 "그 밖"으로 따로 적었습니다(종목 선택, 비용, 여기서 보지 않는 자산). 시장 숫자는 펀드 값에 실제로 반영되는 날에 맞췄습니다: 한국 주식·금리는 하루 전, 해외 주식·금·미국 금리는 이틀 전 값입니다.</p>`}
  const eqf=F.kr!=null&&F.us!=null?(F.kr+F.us)/2:null;
  const GK=[["fx","환율을 그대로 받는 자산",F.fx,F.fx==null?"":`1달러 값이 ${sgn(F.fx)} ${F.fx<0?"내렸기":"올랐기"}`],["kr","한국 주식",F.kr,F.kr==null?"":`한국 주식(코스피)이 ${sgn(F.kr)} ${F.kr<0?"내렸기":"올랐기"}`],["us","미국 주식",F.us,F.us==null?"":`미국 주식(S&P500)이 ${sgn(F.us)} ${F.us<0?"내렸기":"올랐기"}`],["safe","채권·현금(덜 흔들리는 자산)",eqf==null?null:-eqf,eqf==null?"":`주식이 전체적으로 ${eqf<0?"약했기":"강했기"}`],["gold","금",F.gold,F.gold==null?"":`금값이 ${sgn(F.gold)} ${F.gold<0?"내렸기":"올랐기"}`]];
  const half=(arr,val,name,f,why,unit)=>{const z=arr.map(y=>[y[0],val(y)]).filter(y=>y[1]!=null).sort((a,b)=>b[1]-a[1]);if(z.length<6)return "";
@@ -402,7 +426,7 @@ function analyst(T,scope,lab,rr,AT,s,e,style,ex,nm,X){
  grp=grp.filter(Boolean);
  const nh=Math.floor(E.length/2);
  // ── 4. 1위와 꼴찌 나란히 ──
- const HK=[["kr","한국 주식"],["us","미국 주식"],["eu","유럽 주식"],["jp","일본 주식"],["cn","중국 주식"],["oeq","그 밖의 주식"],["bond","채권"],["gold","금"],["cash","현금"],["fx","환율을 그대로 받는 부분"]];
+ const HK=[["kr","한국 주식"],["us","미국 주식"],["eu","유럽 주식"],["jp","일본 주식"],["cn","중국 주식(홍콩)"],["cna","중국 본토 주식"],["em","신흥국 주식"],["oeq","그 밖의 주식"],["bond","채권"],["gold","금"],["cash","현금"],["fx","환율을 그대로 받는 부분"]];
  const aw={};if(E.length)HK.forEach(([k])=>aw[k]=avgOf(E.map(y=>wOf(y[1],k))));
  let h2h="";const oa=PE(rr[0][0][0]),oz=PE(rr[N-1][0][0]);
  if(oa&&oz){const dif=HK.map(([k,n])=>[k,n,wOf(oa,k),wOf(oz,k)]).filter(r=>r[2]>=0.5||r[3]>=0.5),big=dif.slice().sort((a,b)=>Math.abs(b[2]-b[3])-Math.abs(a[2]-a[3])).slice(0,2).filter(r=>Math.abs(r[2]-r[3])>=5);
@@ -447,6 +471,7 @@ function analyst(T,scope,lab,rr,AT,s,e,style,ex,nm,X){
  (X.picks?sec(++k,"앞으로는 어떻게 하나요? — 전략과 추천 펀드",X.picks):"")+
  (p1?sec(++k,"시장에서 무슨 일이 있었나요?",`<p style="margin:0">${p1}</p>`+mk):"")+
  (p3||style.length?sec(++k,"왜 순위가 갈렸나요?",(p3?`<p style="margin:0">펀드끼리 성적이 달랐던 이유를 크기 순으로 나누면 이렇습니다.</p>`+p3:"")+(style.length?`<ul style="margin:0 0 0 18px">${style.map(x=>`<li>${x}</li>`).join("")}</ul>`:"")):"")+
+ (selT?sec(++k,"종목·업종 선택은 어떻게 달랐나요? (자료로 나눠 보기)",selT):"")+
  (grp.length?sec(++k,"무엇을 많이 담았느냐에 따라 성적이 어떻게 달랐나요?",`<p style="margin:0 0 6px">펀드를 두 무리로 나눠 평균 성적을 비교했습니다. 보통은 많이 담은 절반과 적게 담은 절반으로 나누고, 아예 안 담은 펀드가 많은 것(금 등)은 담은 펀드와 안 담은 펀드로 나눴습니다.</p>`+tbl(["비교한 것","한쪽 무리의 평균 수익률","다른 쪽 무리의 평균 수익률","차이","풀이"],grp)):"")+
  (h2h?sec(++k,"1위와 꼴찌는 무엇이 달랐나요?",h2h):"")+
  sec(++k,"펀드 하나하나 살펴보기",each+ex)+
