@@ -316,7 +316,7 @@ function analyst(T,scope,lab,rr,AT,s,e,style,ex,nm){
  if(lv.us)c.push(`미국 10년 금리 ${lv.us[0].toFixed(2)}%는 최근 5년 가운데 ${pcTxt(lv.us[1])}에 해당하는 높이다. `+(lv.us[1]>=70?"금리가 높은 구간이라 채권의 이자 수익 매력이 크다.":lv.us[1]<=30?"금리가 낮아 채권에서 기대할 수익은 제한적이다.":"채권의 매력은 중립적이다."));
  if(lv.maKr!=null&&lv.maUs!=null)c.push(`코스피는 200일 평균 대비 ${sgn(lv.maKr)}, S&P500은 ${sgn(lv.maUs)} 위치다. `+[["코스피는",lv.maKr],["S&P500은",lv.maUs]].map(([n,v])=>v>10?n+" 단기 과열 부담이 있고":v<-5?n+" 추세가 꺾인 상태이고":n+" 추세가 유지되고 있고").join(" ").replace(/고$/,"다")+".");
  if(c.length)P.push(["체크 포인트 (기간 말 기준)",c.join(" ")]);
- return `<div class=card style="line-height:1.7"><div style="font-size:12px;color:#888">${lab} · ${scope}</div><div style="font-size:19px;font-weight:700;margin:2px 0 12px;color:#1f2560">${head}</div>`+P.map(([t,x])=>`<p style="margin:0 0 10px"><b style="color:#1f2560">${t}</b><br>${x}</p>`).join("")+ex+`<p class=note style="margin:10px 0 0">이 글은 수익률·공시 구성·경제 지표에 정해진 규칙을 적용해 자동으로 쓴 것입니다. 사람이 쓴 의견이 아니며 뉴스·정책 같은 사건은 반영되지 않습니다. <a data-t="view" style="cursor:pointer;color:#1f2560;text-decoration:underline">지표 기반 전망·모형 배분 보기 →</a></p></div>`}
+ return `<div class=card style="line-height:1.7"><div style="font-size:12px;color:#888">${lab} · ${scope}</div><div style="font-size:19px;font-weight:700;margin:2px 0 12px;color:#1f2560">${head}</div>`+P.map(([t,x])=>`<p style="margin:0 0 10px"><b style="color:#1f2560">${t}</b><br>${x}</p>`).join("")+ex+`<p class=note style="margin:10px 0 0">이 글은 수익률·공시 구성·경제 지표에 정해진 규칙을 적용해 자동으로 쓴 것입니다. 경기·정책·실적에 대한 해석 없이 데이터만으로 판단한 내용입니다. <a data-t="view" style="cursor:pointer;color:#1f2560;text-decoration:underline">지표 기반 전망·모형 배분 보기 →</a></p></div>`}
 // ───────── 전망·모형 배분(지표에 규칙을 적용한 기계적 모형) ─────────
 let vH=3;
 // [키, 이름, 기준 비중(%), 지표]
@@ -351,7 +351,7 @@ function varMix(w){const m={};for(const k in w){const r=R_VAR.find(x=>x[1]==VMAP
 function view(){
  const i=NAV.d.length-1;if(!NAV.v["I:sp500"]||!NAV.v["I:kospi"])return `<h2>전망·모형 배분</h2><p class=note>경제 지표 자료를 불러오지 못했습니다.</p>`;
  const sig=sigAt(i,vH),w=tiltW(sig),bt=backtest(vH),op=s=>s>=0.5?["비중 확대","pos"]:s<=-0.5?["비중 축소","neg"]:["중립",""];
- let h=`<h2>전망·모형 배분 <span class=note>— 경제 지표에 정해진 규칙을 적용한 기계적 모형 (기준일 ${date(NAV.d[i])})</span></h2><div class=tog><b>대상 기간</b>`+[1,3,6,12].map(k=>`<a data-vh="${k}" class="${k==vH?"on":""}">${VHN[k]}</a>`).join("")+`</div>`;
+ let h=`<h2>전망·모형 배분 <span class=note>— 경기·정책·실적 판단을 빼고 가격·금리·환율 데이터만으로 계산한 모형 (기준일 ${date(NAV.d[i])})</span></h2><div class=tog><b>대상 기간</b>`+[1,3,6,12].map(k=>`<a data-vh="${k}" class="${k==vH?"on":""}">${VHN[k]}</a>`).join("")+`</div>`;
  // 요약 문단
  const ow=VA.filter(([k])=>sig[k]&&sig[k].s>=0.5).map(x=>x[1]),uw=VA.filter(([k])=>sig[k]&&sig[k].s<=-0.5).map(x=>x[1]),eqUp=VA.slice(0,6).filter(([k])=>sig[k]&&sig[k].s>0).length,eqN=VA.slice(0,6).filter(([k])=>sig[k]).length;
  const lv=levels(NAV.n[i]),vx=NAV.v["I:vix"]?NAV.v["I:vix"][i]:null,eqT=VA.slice(0,6).reduce((a,x)=>a+w[x[0]],0),eqB=VA.slice(0,6).reduce((a,x)=>a+x[2],0);
@@ -371,7 +371,7 @@ function view(){
  // 변액: 모형 비중을 펀드로 옮긴 예시
  const vm=varMix(w);
  h+=`<h3 style="margin:22px 0 8px">모형 비중을 변액 펀드로 옮긴 예시</h3><div class=wrap><table class=cmp><tr><th>변액 펀드<th>비중<th>대응하는 자산</tr>`+Object.entries(vm).sort((a,b)=>b[1]-a[1]).map(([c,v])=>`<tr><td class=l><span class=tag>${esc(DV[c][1])}</span><td><b>${v}%</b><td class=l>${VA.filter(x=>(R_VAR.find(r=>r[1]==VMAP[x[0]])||{})[0]==c).map(x=>x[1]).join(", ")}</tr>`).join("")+`</table></div><div class=tog style="margin-top:8px"><a data-vsend="1">이 조합을 시뮬레이터에 추가</a></div><p class=note>자산별로 가장 가까운 변액 펀드 하나씩에 대응시키고 5% 단위로 맞춘 것입니다. 일본은 해당 펀드가 없어 글로벌주식형에, 인도는 아시아주식형에 넣었습니다. 변액 펀드는 환헤지 여부가 펀드마다 정해져 있습니다(미국주식형·글로벌채권형은 환노출, 유럽·아시아·골드는 환헤지).</p>`;
- return h+`<p class=note style="border-top:1px solid #ddd;padding-top:10px;margin-top:14px"><b>유의사항.</b> 이 화면은 과거 가격 흐름과 금리 수준에 단순한 규칙을 적용한 결과이며, 투자 권유나 개인별 자문이 아닙니다. 경기·정책·기업 실적 같은 판단은 들어 있지 않고, 과거에 통한 규칙이 앞으로도 통한다는 보장이 없습니다. 고객의 투자 목적·기간·위험 성향에 맞는지는 별도로 판단해야 합니다.</p>`;
+ return h+`<p class=note style="border-top:1px solid #ddd;padding-top:10px;margin-top:14px"><b>유의사항.</b> 이 화면은 경기·정책·기업 실적에 대한 판단을 일부러 넣지 않고, 가격 흐름·금리·환율 데이터에 정해진 규칙만 적용한 결과입니다. 투자 권유나 개인별 자문이 아니며, 과거에 통한 규칙이 앞으로도 통한다는 보장이 없습니다. 고객의 투자 목적·기간·위험 성향에 맞는지는 별도로 판단해야 합니다.</p>`;
 }
 // kind: "tdf"(빈티지별 TDF) 또는 "var"(메트라이프 변액 펀드)
 function report(kind){
