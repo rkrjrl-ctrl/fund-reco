@@ -58,8 +58,15 @@ async function indicators(keys) {
   const ok = v => v != null && v !== '' && !isNaN(+v);
   const out = {};
   for (const k of keys) { out[k] = new Map(); for (const l of (await txt('long_term/' + k + '.csv')).split('\n').slice(1)) { const [d, v] = l.trim().split(','); if (d && ok(v)) out[k].set(d.replace(/-/g, ''), +v); } }
+  // 저장소의 일별 수집분(history.csv)은 '수집한 날짜'로 찍혀 있어 수집 시각에 따라 전날 값이 들어간다.
+  // 그래서 최근 구간은 실제 거래일 기준인 야후 일별 종가로 덮어쓰고, 야후에 없는 지표(한국 금리 등)나 야후 조회 실패 때만 history.csv를 쓴다.
+  const YT = { kospi: '^KS11', sp500: '^GSPC', nasdaq: '^IXIC', usdkrw: 'KRW=X', us_10y: '^TNX', gold: 'GC=F', stoxx50: '^STOXX50E', nikkei: '^N225', shanghai: '000001.SS', hsi: '^HSI', nifty: '^NSEI', vix: '^VIX' };
+  const yahoo = async t => { const r = await fetch('https://query1.finance.yahoo.com/v8/finance/chart/' + encodeURIComponent(t) + '?range=2y&interval=1d', { headers: UA }); if (!r.ok) throw new Error('yahoo ' + t + ' ' + r.status); const res = (await r.json()).chart.result[0], ts = res.timestamp, cl = res.indicators.quote[0].close, off = res.meta.gmtoffset || 0, m = new Map(); ts.forEach((x, i) => { if (cl[i] != null) m.set(new Date((x + off) * 1000).toISOString().slice(0, 10).replace(/-/g, ''), cl[i]); }); if (m.size < 200) throw new Error('yahoo ' + t + ' 자료 부족'); return m; };
+  const done = new Set();
+  for (const k of keys) if (YT[k]) { try { const m = await retry(() => yahoo(YT[k]), 2), d0 = [...m.keys()].sort()[0]; for (const d of [...out[k].keys()]) if (d >= d0) out[k].delete(d); for (const [d, v] of m) out[k].set(d, v); done.add(k); await sleep(200); } catch (e) { log('WARN 지표 ' + k + ' 실제 거래일 자료 조회 실패(' + e.message + '), 저장소 수집분 사용'); } }
   const h = (await txt('history.csv')).split('\n').map(l => l.trim().split(',')), head = h[0];
-  for (const row of h.slice(1)) for (const k of keys) { const i = head.indexOf(k); if (i > 0 && row[0] && ok(row[i])) out[k].set(row[0].replace(/-/g, ''), +row[i]); }
+  for (const row of h.slice(1)) for (const k of keys) { if (done.has(k)) continue; const i = head.indexOf(k); if (i > 0 && row[0] && ok(row[i])) out[k].set(row[0].replace(/-/g, ''), +row[i]); }
+  log('지표: 실제 거래일 기준 ' + done.size + '개, 저장소 수집분 ' + (keys.length - done.size) + '개');
   return out;
 }
 // TDF 구성·위험 지표(주식·채권 비중, 주요 보유, 환헤지 포지션, 1년 변동성·샤프)
@@ -182,7 +189,7 @@ async function main() {
   try {
     const IND = await indicators(['usdkrw', 'sp500', 'nasdaq', 'kospi', 'us_10y', 'kr_10y', 'gold', 'stoxx50', 'nikkei', 'shanghai', 'hsi', 'nifty', 'vix']);
     for (const k in IND) { const e = [...IND[k]].sort((a, b) => a[0].localeCompare(b[0])); let j = 0, last = null; if (e.length < 100) continue;
-      packV('I:' + k, axis.map(d => { while (j < e.length && e[j][0] <= d) last = e[j++][1]; return last; }), x => String(x)); }
+      packV('I:' + k, axis.map(d => { while (j < e.length && e[j][0] <= d) last = e[j++][1]; return last; }), x => String(Math.round(x * 1000) / 1000)); }
   } catch (e) { log('WARN 경제 지표 ' + e.message); }
   // 3) 행
   const R_TDF = tdfRows.filter(d => S[d.PDNO]).map(d => [...rowBase(d), +d.PRDT_NAME.match(/20[2-7][05]/)[0], famOf(d)]);
