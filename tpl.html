@@ -508,7 +508,9 @@ function backtest(H){const me=[];for(let i=1;i<NAV.d.length;i++)if(NAV.d[i].slic
    x+=(w[k]-b)/100*r}
   ex.push(x)}
  return ex.length?{n:ex.length,avg:avgOf(ex),win:ex.filter(x=>x>0).length/ex.length*100,from:NAV.d[me.slice(-250)[0]]}:null}
-const VMAP={kr:"인덱스주식형 2호",us:"미국주식형 3호",eu:"유럽주식형",jp:"글로벌주식형 2호",cn:"중국주식형",in:"아시아주식형 2호",krb:"채권형",glb:"글로벌채권형",gold:"골드투자형",cash:"MMF형"};
+// 2호·3호는 기본 펀드와 같은 흐름이라(일간 상관 0.97~0.99) 추천에는 기록이 긴 기본 펀드를 쓴다
+const baseRow=r=>R_VAR.find(x=>x[1]==r[1].replace(/ [23]호$/,""))||r;
+const VMAP={kr:"인덱스주식형",us:"미국주식형",eu:"유럽주식형",jp:"글로벌주식형",cn:"중국주식형",in:"아시아주식형",krb:"채권형",glb:"글로벌채권형",gold:"골드투자형",cash:"MMF형"};
 function varMix(w,H){const m={},mmf=R_VAR.find(x=>x[1]=="MMF형"),iL=NAV.d.length-1;for(const k in w){let r=R_VAR.find(x=>x[1]==VMAP[k])||mmf;if(H&&r&&mmf&&r!==mmf){const t=fundTrend(r[0],iL,H);if(t&&t.s<=-1)r=mmf}if(r)m[r[0]]=(m[r[0]]||0)+w[k]}
  const e=Object.entries(m).map(([c,v])=>[c,Math.floor(v/5)*5,v/5%1]);let rest=100-e.reduce((a,x)=>a+x[1],0);e.sort((a,b)=>b[2]-a[2]);for(const x of e){if(rest<=0)break;x[1]+=5;rest-=5}return Object.fromEntries(e.filter(x=>x[1]>0).map(x=>[x[0],x[1]]))}
 function view(){
@@ -553,7 +555,7 @@ const UH={M:1,Q:3,H:6,Y:12};
 // 펀드 하나의 흐름: 최근 L개월 수익률과, 지금 값이 약 10개월(200거래일) 평균보다 위인지
 function fundTrend(c,i,H){const a=NAV.v[c],L=VLB[H];if(!a||a[i]==null)return null;const j=iBefore(addM(NAV.n[i],-L));if(a[j]==null)return null;let t=0,n=0;for(let q=Math.max(0,i-199);q<=i;q++)if(a[q]!=null){t+=a[q];n++}if(n<150)return null;const mom=(a[i]/a[j]-1)*100,ma=(a[i]/(t/n)-1)*100;return {mom,ma,s:((mom>0?1:-1)+(ma>0?1:-1))/2}}
 // 과거 검증: 매월 말 '흐름이 좋은 변액 펀드 5개'를 골랐다면, 그 뒤 H개월 동안 전체 평균보다 나았는지
-function trendBT(H){const me=[];for(let i=1;i<NAV.d.length;i++)if(NAV.d[i].slice(0,6)!=NAV.d[i-1].slice(0,6))me.push(i-1);const ex=[],last=NAV.d.length-1,codes=R_VAR.map(r=>r[0]);
+function trendBT(H){const me=[];for(let i=1;i<NAV.d.length;i++)if(NAV.d[i].slice(0,6)!=NAV.d[i-1].slice(0,6))me.push(i-1);const ex=[],last=NAV.d.length-1,codes=[...new Set(R_VAR.map(r=>baseRow(r)[0]))];
  for(const i of me.slice(-180)){if(NAV.n[last]<addM(NAV.n[i],H)-3)continue;const e=iBefore(addM(NAV.n[i],H));if(e<=i)continue;
   const z=codes.map(c=>{const t=fundTrend(c,i,H),a=NAV.v[c];return t&&a[e]!=null?[t,(a[e]/a[i]-1)*100]:null}).filter(Boolean);if(z.length<10)continue;
   const top=z.filter(y=>y[0].s>=1).sort((p,q)=>q[0].mom-p[0].mom).slice(0,5);if(top.length<3)continue;ex.push(avgOf(top.map(y=>y[1]))-avgOf(z.map(y=>y[1])))}
@@ -582,14 +584,14 @@ function picks(T,H){
     `<details style="margin:8px 0"><summary style="cursor:pointer;color:#1f2560;font-weight:700">나머지 ${C.length-3}개 펀드의 점수도 보기</summary>`+tb(["","펀드","점수","좋은 점","아쉬운 점"],C.slice(3).map((c,k)=>row(c,k,(k+4)+"위")))+`</details>`+
     `<p class=note style="margin:6px 0 0">점수는 여섯 가지를 따져 매겼습니다: 나라별로 담은 비율이 위 전략과 비슷한가(30점), 환율 의견과 맞는가(20점), 최근 1년 성적(15점), 최근 3년 성적(15점), 출렁인 것에 비해 잘 벌었는가(10점), 비용이 낮은가(10점). 노란 줄은 추천 라인업 펀드입니다. 펀드가 담은 비율 자료는 지금 것만 있어서, 이 점수 방식이 예전에 잘 맞았는지는 확인하지 못했습니다.</p>`}
  }else{
-  const vm=varMix(w,H),cur0=R_VAR.filter(r=>/현재/.test(r[4]||"")),cur=cur0.length>=8?cur0:R_VAR;
+  const vm=varMix(w,H),cur0=R_VAR.filter(r=>/현재/.test(r[4]||"")),cur=[...new Set((cur0.length>=8?cur0:R_VAR).map(baseRow))];
   const tr=cur.map(r=>[r,fundTrend(r[0],i,H)]).filter(y=>y[1]),good=tr.filter(y=>y[1].s>=1).sort((a,b)=>b[1].mom-a[1].mom).slice(0,5),bad=tr.filter(y=>y[1].s<=-1).sort((a,b)=>a[1].mom-b[1].mom).slice(0,5),bt=trendBT(H),L=VLB[H];
   const trow=(y,k)=>`<tr><td>${k+1}<td class=l><span class=tag>${esc(y[0][1])}</span><td>${y[0][2]}<td>${pct(y[1].mom)}<td>${pct(y[1].ma)}</tr>`;
   h+=`<p style="margin:0 0 4px"><b>① 전략대로 나눠 담는다면 (추천 조합)</b></p>`+tb(["변액 펀드","담는 비율","어떤 자산 몫인가요"],Object.entries(vm).sort((a,b)=>b[1]-a[1]).map(([c,v])=>`<tr><td class=l><span class=tag>${esc(DV[c][1])}</span><td><b>${v}%</b><td class=l>${VA.filter(x=>(R_VAR.find(r=>r[1]==VMAP[x[0]])||{})[0]==c).map(x=>x[1]).join(", ")||"흐름이 나쁜 펀드 몫을 돌려 둔 것"}</tr>`))+
    `<p class=note style="margin:6px 0 0">위 전략의 자산마다 가장 비슷한 변액 펀드를 하나씩 짝지었습니다. 다만 짝지은 펀드가 아래 ③(지금 흐름이 나쁜 펀드)에 해당하면 그 몫은 MMF형으로 돌려 두었습니다.</p><div class=tog style="margin:8px 0"><a data-vsend="${H}">이 조합을 "조합 시뮬레이터"에 넣어서 예전 성적 보기</a></div>`+
    `<p style="margin:10px 0 4px"><b>② 지금 흐름이 좋은 펀드</b> <span class=note>(최근 ${L}개월 동안 올랐고, 지금 값이 약 10개월 평균보다 높은 펀드 가운데 많이 오른 순서)</span></p>`+(good.length?tb(["순위","펀드","유형","최근 "+L+"개월","10개월 평균 대비"],good.map(trow)):`<p class=note>두 조건을 모두 채운 펀드가 없습니다.</p>`)+
    `<p style="margin:10px 0 4px"><b>③ 지금 흐름이 나쁜 펀드</b> <span class=note>(최근 ${L}개월 동안 내렸고, 지금 값이 약 10개월 평균보다 낮은 펀드. 새로 담기는 미루는 쪽)</span></p>`+(bad.length?tb(["순위","펀드","유형","최근 "+L+"개월","10개월 평균 대비"],bad.map(trow)):`<p class=note>두 조건에 모두 걸린 펀드가 없습니다.</p>`)+
-   `<p class=note style="margin:8px 0 0">지금 가입할 수 있는 펀드만 골랐습니다. <b>②번 방법의 과거 검증:</b> ${bt?`${date(bt.from)}부터 매달 말에 흐름이 좋은 펀드 5개를 골랐다고 치고 ${bt.n}번 계산했습니다. ${VHN[H].replace("앞으로 ","")} 뒤에 보니 변액 펀드 전체 평균보다 평균 ${(bt.avg>=0?"+":"")+bt.avg.toFixed(2)}%p ${bt.avg>=0?"더 벌었고":"덜 벌었고"}, 전체 평균보다 나았던 때는 10번 중 ${(bt.win/10).toFixed(0)}번쯤이었습니다.${bt.avg<=0?" 예전에는 도움이 되지 않았으니 참고만 하세요.":bt.win<55?" 평균으로는 나았지만 맞은 때와 틀린 때가 반반이라, 결과가 들쭉날쭉했습니다.":""}`:"자료가 모자라 계산하지 못했습니다."} 변액 펀드는 5% 단위로만 나눠 담을 수 있습니다.</p>`}
+   `<p class=note style="margin:8px 0 0">지금 가입할 수 있는 펀드만 골랐고, 2호·3호가 있는 펀드는 같은 흐름으로 움직이는 기본 펀드(기록이 더 긴 쪽)로 표시했습니다. <b>②번 방법의 과거 검증:</b> ${bt?`${date(bt.from)}부터 매달 말에 흐름이 좋은 펀드 5개를 골랐다고 치고 ${bt.n}번 계산했습니다. ${VHN[H].replace("앞으로 ","")} 뒤에 보니 변액 펀드 전체 평균보다 평균 ${(bt.avg>=0?"+":"")+bt.avg.toFixed(2)}%p ${bt.avg>=0?"더 벌었고":"덜 벌었고"}, 전체 평균보다 나았던 때는 10번 중 ${(bt.win/10).toFixed(0)}번쯤이었습니다.${bt.avg<=0?" 예전에는 도움이 되지 않았으니 참고만 하세요.":bt.win<55?" 평균으로는 나았지만 맞은 때와 틀린 때가 반반이라, 결과가 들쭉날쭉했습니다.":""}`:"자료가 모자라 계산하지 못했습니다."} 변액 펀드는 5% 단위로만 나눠 담을 수 있습니다.</p>`}
  return h+`<p class=note style="margin:8px 0 0">이 전략과 펀드 선정은 가격·금리·환율 숫자에 정해 둔 기준을 적용한 결과입니다. 경기·정책·회사 실적에 대한 판단은 들어 있지 않고, 고객 한 분 한 분의 목적·기간·위험 성향은 따로 따져야 합니다. 예전에 맞았던 기준이 앞으로도 맞는다는 보장은 없습니다.</p>`}
 // kind: "tdf"(빈티지별 TDF) 또는 "var"(메트라이프 변액 펀드)
 function report(kind){
