@@ -258,7 +258,7 @@ function attrib(rr,s,e){
   const sf=safe(o);if(Math.abs(sf-asafe)>=10&&F.kr!=null&&F.us!=null){const eqf=(F.kr+F.us)/2;if((sf>asafe)==(rel>=0)==(eqf<0))out.push(`채권·현금 등 <b>안전자산 비중이 ${sf>asafe?"높음":"낮음"}</b>(${sf.toFixed(0)}%, 평균 ${asafe.toFixed(0)}%)`)}
   if(Math.abs(res)>=Math.max(0.7,0.5*Math.abs(rel))&&(res>=0)==(rel>=0))out.push(o.sec?`<b>${o.sec} 업종</b> 자체의 등락 영향이 큼 (약 ${pp(res)})`:rest(o)>=Math.max(20,aox+10)?`지표가 없는 <b>기타 지역·미분류 주식 비중이 높아</b>(${rest(o).toFixed(0)}%, 평균 ${aox.toFixed(0)}%) 해당 자산 성과의 영향 (약 ${pp(res)})`:o.dyn?`기간 중 비중 조절 등 운용 효과 (약 ${pp(res)})`:`지역·업종·종목 선택 효과 (약 ${pp(res)})`);
   if(!out.length)out.push(Math.abs(rel)<0.3?`또래 평균과 비슷한 구성·성과`:`구성 차이로 설명되는 부분이 작고 종목·업종 선택 영향이 큼`);
-  return {out,rel,est,res}})}
+  return {out,rel,est,res,d}})}
 let rUnit="M",rKey="",rFeat=false,rvg="전체";
 const UN={M:["월",1],Q:["분기",3],H:["반기",6],Y:["연도",12]};
 // 기간 목록(최근 순): [키, 이름, 시작일, 끝일, 진행 중]
@@ -277,6 +277,102 @@ const INDN=[["sp500","S&P500",0],["nasdaq","나스닥",0],["kospi","코스피",0
 function mktLine(s,e){const out=[];for(const [k,n,ty] of INDN){const x=perEnds("I:"+k,s,e);if(!x)continue;const [b,z]=x;
  out.push(ty==2?`${n} ${b.toFixed(2)}%→${z.toFixed(2)}% (${(z-b>0?"+":"")+(z-b).toFixed(2)}%p)`:ty==1?`${n} ${Math.round(b).toLocaleString()}→${Math.round(z).toLocaleString()}원 (${sgn((z/b-1)*100)}, 원화 ${z<b?"강세":"약세"})`:`${n} ${sgn((z/b-1)*100)}`)}
  return out.length?`<b>시장 배경:</b> `+out.join(" · "):""}
+// ───────── 애널리스트 형식 코멘트(규칙으로 생성) ─────────
+// 기간 끝 시점의 수준 지표: 환율의 3년 평균 대비 위치, 금리의 5년 내 순위, 지수의 200일 평균 대비 위치
+const pcTxt=p=>p>=50?"상위 "+Math.max(1,100-p).toFixed(0)+"%":"하위 "+Math.max(1,p).toFixed(0)+"%";
+function levels(e){const i=iBefore(e),o={},ser=k=>NAV.v["I:"+k];
+ const avgBack=(a,from)=>{let t=0,n=0;for(let q=from;q<=i;q++)if(a[q]!=null){t+=a[q];n++}return n?t/n:null};
+ const fx=ser("usdkrw");if(fx&&fx[i]!=null){o.fx=fx[i];o.fxDev=(fx[i]/avgBack(fx,iBefore(addM(NAV.n[i],-36)))-1)*100}
+ const pc=k=>{const a=ser(k);if(!a||a[i]==null)return null;let lo=0,n=0;for(let q=iBefore(addM(NAV.n[i],-60));q<=i;q++)if(a[q]!=null){n++;if(a[q]<=a[i])lo++}return [a[i],lo/n*100]};
+ o.us=pc("us_10y");o.kr=pc("kr_10y");
+ const ma=k=>{const a=ser(k);if(!a||a[i]==null)return null;const m=avgBack(a,Math.max(0,i-199));return (a[i]/m-1)*100};
+ o.maKr=ma("kospi");o.maUs=ma("sp500");return o}
+function analyst(T,scope,lab,rr,AT,s,e,style,ex,nm){
+ const F=factors(s,e),N=rr.length,av=avgOf(rr.map(x=>x[1])),sp=rr[0][1]-rr[N-1][1],ok=AT.filter(Boolean),P=[];
+ // 펀드 간 차이를 요인별로 나눠 본 설명 비중(기여도의 표준편차 기준)
+ const ks=ok.length?ok[0].d.map(z=>z.k):[],sdv=k=>{const v=ok.map(a=>a.d.find(z=>z.k==k).v),m=avgOf(v);return Math.sqrt(avgOf(v.map(x=>(x-m)**2)))};
+ const resSd=ok.length?Math.sqrt(avgOf(ok.map(a=>a.res**2))):0,drv=ks.map(k=>[k,sdv(k)]).sort((a,b)=>b[1]-a[1]),tot=(drv.reduce((a,x)=>a+x[1],0)+resSd)||1;
+ const HL={fx:f=>f<0?"원화 강세가 순위를 갈랐다 — 환헤지형 우위":"원화 약세의 수혜 — 환노출형 우위",kr:f=>f>=0?"코스피 강세, 한국 주식 비중이 성과를 좌우":"코스피 약세, 한국 주식을 덜 담은 쪽이 선방",us:f=>f>=0?"미국 증시 상승, 미국 비중이 높은 펀드 우위":"미국 증시 조정, 미국 비중이 부담",krb:f=>f>=0?"국내 채권 강세, 채권 비중이 수익에 기여":"국내 금리 상승, 채권 비중이 부담",glb:f=>f>=0?"해외 채권 강세, 채권 비중이 수익에 기여":"미국 금리 상승, 해외 채권 비중이 부담",gold:f=>f>=0?"금 강세, 금을 담은 펀드가 돋보였다":"금 약세가 부담"};
+ const d0=drv[0],head=!d0||sp<1.5?`펀드 간 차별화는 제한적 — 상·하위 격차 ${sp.toFixed(1)}%p`:resSd>d0[1]*1.5?`자산 배분보다 종목·업종 선택이 순위를 결정`:HL[d0[0]]?HL[d0[0]](F[d0[0]]):`${FNM[d0[0]][0]} ${F[d0[0]]>=0?"강세":"약세"}가 순위에 영향`;
+ // ① 시장 리뷰
+ const eqs=[["us","미국 S&P500"],["eu","유럽 유로스톡스50"],["jp","일본 닛케이225"],["cn","중국(상해·항셍 평균)"],["in","인도 니프티50"]].filter(([k])=>F[k]!=null),ga=avgOf(eqs.map(([k])=>F[k]));
+ let p=eqs.length?`해외 증시는 ${eqs.map(([k,n])=>n+" "+sgn(F[k])).join(", ")}로 전반적으로 ${ga>3?"강세":ga<-3?"약세":"혼조"}였다. `:"";
+ if(F.kr!=null)p+=`코스피는 ${sgn(F.kr)}로 ${ga==null?"마감했다":F.kr>ga+2?"해외 평균("+sgn(ga)+")을 웃돌았다":F.kr<ga-2?"해외 평균("+sgn(ga)+")을 밑돌았다":"해외 평균("+sgn(ga)+")과 비슷했다"}. `;
+ const uu=perEnds("I:us_10y",s,e),ku=perEnds("I:kr_10y",s,e);
+ if(uu){const d=uu[1]-uu[0];p+=`미국 10년 금리는 ${uu[0].toFixed(2)}%에서 ${uu[1].toFixed(2)}%로 ${Math.abs(d).toFixed(2)}%p ${d>=0?"올랐고":"내렸고"}${ku?`, 한국 10년 금리는 ${ku[0].toFixed(2)}%에서 ${ku[1].toFixed(2)}%로 움직여`:""} 채권 가격에는 ${d>0.1?"부담이었다":d<-0.1?"우호적이었다":"중립적이었다"}. `}
+ const fx=perEnds("I:usdkrw",s,e);if(fx)p+=`원/달러 환율은 ${Math.round(fx[0]).toLocaleString()}원에서 ${Math.round(fx[1]).toLocaleString()}원으로 ${sgn(F.fx)} 움직여 원화가 ${F.fx<0?"강세":"약세"}였다. `;
+ if(F.gold!=null)p+=`금은 ${sgn(F.gold)}.`;
+ if(p)P.push(["시장 리뷰",p]);
+ // ② 성과 분석
+ let q=`${scope} ${N}개의 평균 수익률은 <b>${sgn(av)}</b>, 1위와 최하위의 격차는 ${sp.toFixed(2)}%p다. `;
+ if(d0&&d0[1]>0.05){q+=`펀드 간 차이를 가장 많이 설명한 요인은 <b>${FNM[d0[0]][0]}</b>(${FNM[d0[0]][1]} ${sgn(F[d0[0]])}, 설명 비중 약 ${(d0[1]/tot*100).toFixed(0)}%)`+(drv[1]&&drv[1][1]>0.05?`이고 다음은 ${FNM[drv[1][0]][0]}(약 ${(drv[1][1]/tot*100).toFixed(0)}%)다. `:`다. `)+`자산 배분으로 설명되지 않는 종목·업종 선택 효과는 약 ${(resSd/tot*100).toFixed(0)}%를 차지한다. `}
+ const a0=AT[0],aN=AT[N-1];
+ q+=`1위 ${nm(rr[0])}(${sgn(rr[0][1])})${a0?"는 "+a0.out[0]:""}${a0?", ":"와 "}최하위 ${nm(rr[N-1])}(${sgn(rr[N-1][1])})${aN?"는 "+aN.out[0]:""}${a0||aN?"으로 요약된다.":"의 격차가 두드러졌다."}`;
+ P.push(["성과 분석",q]);
+ if(style.length)P.push(["스타일별 평가",style.map(x=>x.replace(/<b>(.*?):<\/b>/,"$1 —").replace(/습니다/g,"다").replace(/참고용입니다/g,"참고용이다").replace(/입니다/g,"이다")).join(" ")]);
+ // ③ 체크 포인트(기간 끝 시점 기준)
+ const lv=levels(e),c=[];
+ if(lv.fxDev!=null)c.push(`원/달러 ${Math.round(lv.fx).toLocaleString()}원은 최근 3년 평균보다 ${Math.abs(lv.fxDev).toFixed(1)}% ${lv.fxDev>=0?"높다":"낮다"}. `+(lv.fxDev>5?"환율이 평균으로 되돌아가면 환노출 펀드에 불리하므로 환헤지 여부를 점검할 구간이다.":lv.fxDev<-5?"원화가 이미 강한 구간이어서 환노출 펀드의 추가 환손실 위험은 상대적으로 줄었다.":"환율 수준 자체의 부담은 크지 않다."));
+ if(lv.us)c.push(`미국 10년 금리 ${lv.us[0].toFixed(2)}%는 최근 5년 가운데 ${pcTxt(lv.us[1])}에 해당하는 높이다. `+(lv.us[1]>=70?"금리가 높은 구간이라 채권의 이자 수익 매력이 크다.":lv.us[1]<=30?"금리가 낮아 채권에서 기대할 수익은 제한적이다.":"채권의 매력은 중립적이다."));
+ if(lv.maKr!=null&&lv.maUs!=null)c.push(`코스피는 200일 평균 대비 ${sgn(lv.maKr)}, S&P500은 ${sgn(lv.maUs)} 위치다. `+[["코스피는",lv.maKr],["S&P500은",lv.maUs]].map(([n,v])=>v>10?n+" 단기 과열 부담이 있고":v<-5?n+" 추세가 꺾인 상태이고":n+" 추세가 유지되고 있고").join(" ").replace(/고$/,"다")+".");
+ if(c.length)P.push(["체크 포인트 (기간 말 기준)",c.join(" ")]);
+ return `<div class=card style="line-height:1.7"><div style="font-size:12px;color:#888">${lab} · ${scope}</div><div style="font-size:19px;font-weight:700;margin:2px 0 12px;color:#1f2560">${head}</div>`+P.map(([t,x])=>`<p style="margin:0 0 10px"><b style="color:#1f2560">${t}</b><br>${x}</p>`).join("")+ex+`<p class=note style="margin:10px 0 0">이 글은 수익률·공시 구성·경제 지표에 정해진 규칙을 적용해 자동으로 쓴 것입니다. 사람이 쓴 의견이 아니며 뉴스·정책 같은 사건은 반영되지 않습니다. <a data-t="view" style="cursor:pointer;color:#1f2560;text-decoration:underline">지표 기반 전망·모형 배분 보기 →</a></p></div>`}
+// ───────── 전망·모형 배분(지표에 규칙을 적용한 기계적 모형) ─────────
+let vH=3;
+// [키, 이름, 기준 비중(%), 지표]
+const VA=[["kr","한국 주식",10,["kospi"]],["us","미국 주식",30,["sp500"]],["eu","유럽 주식",6,["stoxx50"]],["jp","일본 주식",4,["nikkei"]],["cn","중국 주식",3,["shanghai","hsi"]],["in","인도 주식",2,["nifty"]],["krb","국내 채권",17,["kr_10y"]],["glb","해외 채권",13,["us_10y"]],["gold","금",5,["gold"]],["cash","현금성",10,[]]];
+const VLB={1:3,3:6,6:12,12:12},VWC={1:.3,3:.5,6:.7,12:.8},VHN={1:"다음 1개월",3:"다음 3개월(분기)",6:"다음 6개월(반기)",12:"다음 1년"};
+// i 시점에서 각 자산의 점수(-1~1)와 근거. 주식·금: 모멘텀(최근 L개월 수익률 부호) + 추세(200일 평균 위/아래). 채권: 금리 수준(5년 내 순위)과 금리 방향
+function sigAt(i,H){const L=VLB[H],out={},jb=iBefore(addM(NAV.n[i],-L));
+ const px=k=>{const a=NAV.v["I:"+k];if(!a||a[i]==null||a[jb]==null)return null;let t=0,n=0;for(let q=Math.max(0,i-199);q<=i;q++)if(a[q]!=null){t+=a[q];n++}if(n<150)return null;return {mom:(a[i]/a[jb]-1)*100,ma:(a[i]/(t/n)-1)*100}};
+ for(const [k,,,ind] of VA){
+  if(k=="cash"){out[k]={s:0,t:"나머지를 채움"};continue}
+  if(k=="krb"||k=="glb"){const a=NAV.v["I:"+ind[0]];if(!a||a[i]==null||a[jb]==null){out[k]=null;continue}let lo=0,n=0;for(let q=iBefore(addM(NAV.n[i],-60));q<=i;q++)if(a[q]!=null){n++;if(a[q]<=a[i])lo++}
+   const pc=lo/n*100,dy=a[i]-a[jb],carry=pc>=66?1:pc<=33?-1:0,ms=dy<-0.15?1:dy>0.15?-1:0;out[k]={s:VWC[H]*carry+(1-VWC[H])*ms,t:`금리 ${a[i].toFixed(2)}% (최근 5년 중 ${pcTxt(pc)}, ${carry>0?"높은 편":carry<0?"낮은 편":"중간"}) · 최근 ${L}개월 ${(dy>=0?"+":"")+dy.toFixed(2)}%p (${ms>0?"하락 중":ms<0?"상승 중":"횡보"})`};continue}
+  const v=ind.map(px).filter(Boolean);if(!v.length){out[k]=null;continue}const mom=avgOf(v.map(x=>x.mom)),ma=avgOf(v.map(x=>x.ma));
+  out[k]={s:((mom>0?1:-1)+(ma>0?1:-1))/2,t:`최근 ${L}개월 ${sgn(mom)} · 200일 평균 대비 ${sgn(ma)}`}}
+ return out}
+// 점수 → 비중: 기준 비중 × (1 + 0.4 × 점수), 남는 부분은 현금성(최소 2%)
+function tiltW(sig){const w={};let t=0;for(const [k,,b] of VA)if(k!="cash"){w[k]=b*(1+0.4*(sig[k]?sig[k].s:0));t+=w[k]}if(t>98){for(const k in w)w[k]*=98/t;t=98}w.cash=100-t;return w}
+// 과거 검증: 매월 말 같은 규칙으로 비중을 정했을 때, 이후 H개월 동안 기준 비중보다 나았는지
+function backtest(H){const me=[];for(let i=1;i<NAV.d.length;i++)if(NAV.d[i].slice(0,6)!=NAV.d[i-1].slice(0,6))me.push(i-1);
+ const ex=[],last=NAV.d.length-1;
+ for(const i of me.slice(-140)){const e=iBefore(addM(NAV.n[i],H));if(NAV.n[last]<addM(NAV.n[i],H)-3||e<=i)continue;const sig=sigAt(i,H);if(!sig.us||!sig.kr)continue;const w=tiltW(sig);let x=0;
+  for(const [k,,b,ind] of VA){let r=0;const g=n=>{const a=NAV.v["I:"+n];return a&&a[i]!=null&&a[e]!=null?[a[i],a[e]]:null};
+   if(k=="cash"){const y=g("kr_10y");r=y?Math.max(0,y[0]-0.7)*H/12:0}
+   else if(k=="krb"||k=="glb"){const y=g(ind[0]);if(!y)continue;r=y[0]*H/12-(k=="krb"?5:6)*(y[1]-y[0])}
+   else{const v=ind.map(g).filter(Boolean);if(!v.length)continue;r=avgOf(v.map(y=>(y[1]/y[0]-1)*100))}
+   x+=(w[k]-b)/100*r}
+  ex.push(x)}
+ return ex.length?{n:ex.length,avg:avgOf(ex),win:ex.filter(x=>x>0).length/ex.length*100,from:NAV.d[me.slice(-140)[0]]}:null}
+const VMAP={kr:"인덱스주식형 2호",us:"미국주식형 3호",eu:"유럽주식형",jp:"글로벌주식형 2호",cn:"중국주식형",in:"아시아주식형 2호",krb:"채권형",glb:"글로벌채권형",gold:"골드투자형",cash:"MMF형"};
+function varMix(w){const m={};for(const k in w){const r=R_VAR.find(x=>x[1]==VMAP[k])||R_VAR.find(x=>x[1]=="MMF형");if(r)m[r[0]]=(m[r[0]]||0)+w[k]}
+ const e=Object.entries(m).map(([c,v])=>[c,Math.floor(v/5)*5,v/5%1]);let rest=100-e.reduce((a,x)=>a+x[1],0);e.sort((a,b)=>b[2]-a[2]);for(const x of e){if(rest<=0)break;x[1]+=5;rest-=5}return Object.fromEntries(e.filter(x=>x[1]>0).map(x=>[x[0],x[1]]))}
+function view(){
+ const i=NAV.d.length-1;if(!NAV.v["I:sp500"]||!NAV.v["I:kospi"])return `<h2>전망·모형 배분</h2><p class=note>경제 지표 자료를 불러오지 못했습니다.</p>`;
+ const sig=sigAt(i,vH),w=tiltW(sig),bt=backtest(vH),op=s=>s>=0.5?["비중 확대","pos"]:s<=-0.5?["비중 축소","neg"]:["중립",""];
+ let h=`<h2>전망·모형 배분 <span class=note>— 경제 지표에 정해진 규칙을 적용한 기계적 모형 (기준일 ${date(NAV.d[i])})</span></h2><div class=tog><b>대상 기간</b>`+[1,3,6,12].map(k=>`<a data-vh="${k}" class="${k==vH?"on":""}">${VHN[k]}</a>`).join("")+`</div>`;
+ // 요약 문단
+ const ow=VA.filter(([k])=>sig[k]&&sig[k].s>=0.5).map(x=>x[1]),uw=VA.filter(([k])=>sig[k]&&sig[k].s<=-0.5).map(x=>x[1]),eqUp=VA.slice(0,6).filter(([k])=>sig[k]&&sig[k].s>0).length,eqN=VA.slice(0,6).filter(([k])=>sig[k]).length;
+ const lv=levels(NAV.n[i]),vx=NAV.v["I:vix"]?NAV.v["I:vix"][i]:null,eqT=VA.slice(0,6).reduce((a,x)=>a+w[x[0]],0),eqB=VA.slice(0,6).reduce((a,x)=>a+x[2],0);
+ let fxTxt="",fxR=50;if(lv.fxDev!=null){fxR=lv.fxDev>5?30:lv.fxDev<-5?70:50;fxTxt=`원/달러 ${Math.round(lv.fx).toLocaleString()}원은 최근 3년 평균보다 ${Math.abs(lv.fxDev).toFixed(1)}% ${lv.fxDev>=0?"높아(원화 약세 구간)":"낮아(원화 강세 구간)"} ${lv.fxDev>5?"평균 회귀 시 환손실 위험이 크다. 해외 자산은 환헤지형 비중을 높이는 쪽":lv.fxDev<-5?"추가 환손실 여지가 작다. 해외 자산은 환노출형 비중을 높이는 쪽":"한쪽으로 치우칠 근거가 약하다. 환헤지형과 환노출형을 반반"}으로 본다(해외 자산 중 환노출 ${fxR}% 안팎).`}
+ h+=`<div class=card style="line-height:1.7"><div style="font-size:19px;font-weight:700;margin:0 0 10px;color:#1f2560">${VHN[vH]}: 주식 ${eqT.toFixed(0)}% (기준 ${eqB}%) · ${eqT>eqB+2?"위험자산 비중 확대":eqT<eqB-2?"위험자산 비중 축소":"중립"}</div>
+ <p style="margin:0 0 10px"><b style="color:#1f2560">신호 요약</b><br>주식 ${eqN}개 시장 가운데 ${eqUp}개가 상승 신호다. ${ow.length?"비중 확대 신호는 "+ow.join(", ")+"에서, ":"비중 확대 신호는 없고, "}${uw.length?"비중 축소 신호는 "+uw.join(", ")+"에서 나왔다.":"비중 축소 신호는 없다."}${vx!=null?` VIX는 ${vx.toFixed(1)}로 ${vx>=25?"시장 불안이 높은 수준이다":vx<=15?"시장이 안정된 수준이다":"보통 수준이다"}.`:""}</p>
+ ${fxTxt?`<p style="margin:0 0 10px"><b style="color:#1f2560">환율</b><br>${fxTxt}</p>`:""}
+ <p style="margin:0"><b style="color:#1f2560">과거 검증</b><br>${bt?`${date(bt.from)} 이후 매월 말 같은 규칙을 적용했다면(${bt.n}회), ${VHN[vH].replace("다음 ","")} 동안 기준 비중 대비 평균 <b>${(bt.avg>=0?"+":"")+bt.avg.toFixed(2)}%p</b>, 기준 비중을 이긴 비율은 <b>${bt.win.toFixed(0)}%</b>였다. ${bt.avg>0.05&&bt.win>=55?"과거에는 도움이 된 편이지만 차이가 크지 않다.":bt.avg<=0?"과거에는 기준 비중을 그대로 둔 것보다 낫지 않았다. 이 기간 신호는 참고 수준으로만 보는 것이 맞다.":"우위가 뚜렷하지 않아 참고 수준으로 보는 것이 맞다."}`:"검증에 필요한 자료가 부족하다."}</p></div>`;
+ // 자산별 표
+ const mx=Math.max(...VA.map(x=>Math.max(x[2],w[x[0]])));
+ h+=`<div class=wrap><table class=cmp><tr><th>자산<th>근거 (지표)<th>신호<th>기준 비중<th>모형 비중<th>차이<th></tr>`+VA.map(([k,n,b])=>{const g=sig[k],o=g?op(g.s):["자료 없음",""],d=w[k]-b;return `<tr><td class=l><b>${n}</b><td ${wrapTd(330)}>${g?g.t:"-"}<td><span class="${o[1]}">${k=="cash"?"-":o[0]}</span><td>${b}%<td><b>${w[k].toFixed(1)}%</b><td>${Math.abs(d)<0.05?"-":`<span class="${d>0?"pos":"neg"}">${(d>0?"+":"")+d.toFixed(1)}%p</span>`}<td class=l><span class=bar style="width:${w[k]/mx*120}px;background:#2a78d6"></span></tr>`}).join("")+`</table></div>`;
+ h+=`<p class=note>규칙: 주식·금은 최근 ${VLB[vH]}개월 수익률의 부호(모멘텀)와 200일 평균 위/아래(추세)를 각각 ±1로 보고 평균합니다. 채권은 금리가 최근 5년 중 높은 편이면 +1(이자 매력), 낮은 편이면 −1이고, 최근 금리가 내리는 중이면 +1, 오르는 중이면 −1입니다(기간이 길수록 금리 수준에 더 큰 가중). 모형 비중 = 기준 비중 × (1 + 0.4 × 점수)이고 남는 부분은 현금성입니다. 기준 비중(주식 55·채권 30·금 5·현금 10)은 비교를 위한 출발점입니다.</p>`;
+ // TDF: 모형과 지역 구성이 가까운 순
+ const tq=EQK.slice(0,6),tw=tq.map(k=>w[k]),ts=tw.reduce((a,b)=>a+b,0);
+ const cand=R_TDF.filter(r=>r[12]==vin).map(r=>{const o=expo(r[0]);if(!o)return null;const es=tq.reduce((a,k)=>a+o.x[k],0);if(es<5)return null;return [r,tq.reduce((a,k,j)=>a+Math.abs(o.x[k]/es-tw[j]/ts),0)*50,o,es]}).filter(Boolean).sort((a,b)=>a[1]-b[1]);
+ h+=`<h3 style="margin:22px 0 8px">모형 배분과 주식 지역 구성이 가까운 TDF</h3><div class=tog><b>빈티지</b>`+VINT.map(y=>`<a data-y="${y}" class="${y==vin?"on":""}">${y}</a>`).join("")+`</div><div class=wrap><table class=cmp><tr><th>순위<th>펀드<th>차이<th>주식 안에서의 지역 비중 (모형: `+tq.map((k,j)=>XK.find(x=>x[0]==k)[1].replace(" 주식","")+" "+(tw[j]/ts*100).toFixed(0)).join(" · ")+`)<th>환노출</tr>`+cand.map(([r,d,o,es],k)=>`<tr class="${ME.has(r[0])?"me":""}"><td>${k+1}<td class=l><span class=tag>${esc(label(r[0]))}</span><td>${d.toFixed(0)}%p<td class=l>${tq.map(q=>XK.find(x=>x[0]==q)[1].replace(" 주식","")+" "+(o.x[q]/es*100).toFixed(0)).join(" · ")}<td>${o.fx.toFixed(0)}%</tr>`).join("")+`</table></div><p class=note>"차이"는 주식 안에서의 지역 비중이 모형과 다른 정도(절대 차이의 절반 합)입니다. TDF는 빈티지에 따라 주식·채권 비율이 정해져 있어 지역 구성만 비교했습니다. 환율 의견(환노출 ${fxR}% 안팎)에 맞추려면 환노출 열을 함께 보십시오.</p>`;
+ // 변액: 모형 비중을 펀드로 옮긴 예시
+ const vm=varMix(w);
+ h+=`<h3 style="margin:22px 0 8px">모형 비중을 변액 펀드로 옮긴 예시</h3><div class=wrap><table class=cmp><tr><th>변액 펀드<th>비중<th>대응하는 자산</tr>`+Object.entries(vm).sort((a,b)=>b[1]-a[1]).map(([c,v])=>`<tr><td class=l><span class=tag>${esc(DV[c][1])}</span><td><b>${v}%</b><td class=l>${VA.filter(x=>(R_VAR.find(r=>r[1]==VMAP[x[0]])||{})[0]==c).map(x=>x[1]).join(", ")}</tr>`).join("")+`</table></div><div class=tog style="margin-top:8px"><a data-vsend="1">이 조합을 시뮬레이터에 추가</a></div><p class=note>자산별로 가장 가까운 변액 펀드 하나씩에 대응시키고 5% 단위로 맞춘 것입니다. 일본은 해당 펀드가 없어 글로벌주식형에, 인도는 아시아주식형에 넣었습니다. 변액 펀드는 환헤지 여부가 펀드마다 정해져 있습니다(미국주식형·글로벌채권형은 환노출, 유럽·아시아·골드는 환헤지).</p>`;
+ return h+`<p class=note style="border-top:1px solid #ddd;padding-top:10px;margin-top:14px"><b>유의사항.</b> 이 화면은 과거 가격 흐름과 금리 수준에 단순한 규칙을 적용한 결과이며, 투자 권유나 개인별 자문이 아닙니다. 경기·정책·기업 실적 같은 판단은 들어 있지 않고, 과거에 통한 규칙이 앞으로도 통한다는 보장이 없습니다. 고객의 투자 목적·기간·위험 성향에 맞는지는 별도로 판단해야 합니다.</p>`;
+}
 // kind: "tdf"(빈티지별 TDF) 또는 "var"(메트라이프 변액 펀드)
 function report(kind){
  const T=kind=="tdf",pool=T?R_TDF:R_VAR;
@@ -318,7 +414,7 @@ function report(kind){
  ex+=`<p style="margin:8px 0 4px"><b>상위</b></p><ul style="margin:0 0 6px 18px">`+rr.slice(0,tn).map((x,k)=>one(x,k+1)).join("")+`</ul><p style="margin:8px 0 4px"><b>하위</b></p><ul style="margin:0 0 6px 18px">`+rr.slice(-tn).map((x,k)=>one(x,N-tn+k+1)).join("")+`</ul>`;
  const me=rr.map((x,k)=>[x,k+1]).filter(([x])=>isMe(x[0]));
  if(me.length)ex+=`<p style="margin:8px 0 0"><b>추천 라인업:</b> `+me.map(([x,k])=>`${nm(x)} ${k}위/${N} (${sgn(x[1])})`).join(", ")+`</p>`;
- h+=`<div class=card style="line-height:1.65">`+L.map(x=>`<p style="margin:0 0 8px">${x}</p>`).join("")+ex+`</div>`;
+ h+=analyst(T,scope,lab+(ing?" (진행 중, "+dstr(e)+"까지)":""),rr,AT,s,e,L.slice(mk?2:1),ex,nm);
  // ── 그래프 + 순위표 ──
  const key="x"+NAV.n[iBefore(s-1)]+":"+e;
  const items=()=>rr.map((x,k)=>({c:x[0][0],label:lb(x[0]),color:PAL[k%PAL.length],bold:isMe(x[0]),off:HID.has(x[0][0])}));
@@ -479,7 +575,7 @@ document.addEventListener("change",e=>{const id=e.target.id;
  else if(id=="rsel"){rKey=e.target.value;render()}
  else if(id=="vat"){vat=e.target.value;vs="";ve="";render()}else if(id=="vs"){vs=e.target.value;render()}else if(id=="ve"){ve=e.target.value;render()}});
 let LASTTAB="";
-const TABS={home:[["home","추천 라인업"]],tdf:[["tdf","빈티지별 비교"],["co","운용사별 비교"],["rep","기간 리포트"]],var:[["var","펀드 비교"],["vinfo","구성·특징"],["vrep","기간 리포트"],["sim","조합 시뮬레이터"]]};
+const TABS={home:[["home","추천 라인업"],["view","전망·모형 배분"]],tdf:[["tdf","빈티지별 비교"],["co","운용사별 비교"],["rep","기간 리포트"]],var:[["var","펀드 비교"],["vinfo","구성·특징"],["vrep","기간 리포트"],["sim","조합 시뮬레이터"]]};
 // 변액 펀드 구성·특징(유형별, 순자산 큰 순)
 function vinfo(){const rows=R_VAR.filter(r=>rvg=="전체"||r[2]==rvg).sort((a,b)=>((VINFO[b[0]]||{}).aum||0)-((VINFO[a[0]]||{}).aum||0));
  return `<h2>변액 펀드 구성·특징 <span class=note>— 메트라이프 변액 펀드의 투자 대상, 자산 구성, 환노출</span></h2><div class=tog><b>유형</b>`+VGRP.map(g=>`<a data-rvg="${g}" class="${g==rvg?"on":""}">${g}</a>`).join("")+`</div>`+vfeatTable(rows)}
@@ -490,13 +586,15 @@ function render(){
  const grp=Object.keys(TABS).find(k=>TABS[k].some(x=>x[0]==t))||"home";
  document.querySelectorAll("nav a").forEach(a=>a.classList.toggle("on",a.dataset.g==grp));
  $("#sub").innerHTML=TABS[grp].length>1?TABS[grp].map(([k,n])=>`<a data-t="${k}" class="${k==t?"on":""}">${n}</a>`).join(""):"";
- $("#v").innerHTML=t=="detail"?detail(i):t=="tdf"?tdf():t=="co"?co():t=="rep"?report("tdf"):t=="vrep"?report("var"):t=="vinfo"?vinfo():t=="var"?variable():t=="sim"?sim():home();
+ $("#v").innerHTML=t=="detail"?detail(i):t=="tdf"?tdf():t=="co"?co():t=="rep"?report("tdf"):t=="vrep"?report("var"):t=="vinfo"?vinfo():t=="view"?view():t=="var"?variable():t=="sim"?sim():home();
  drawAll();
 }
 document.addEventListener("click",e=>{
  const g=k=>e.target.closest("["+k+"]");
- const r=g("data-i"),t=g("data-t"),y=g("data-y"),s=g("data-s"),tpp=g("data-tp"),dpp=g("data-dp"),x=g("data-x"),zr=g("data-zr"),cs=g("data-co"),fm=g("data-fam"),vs=g("data-vs"),va=g("data-vall"),vg=g("data-vg"),vp=g("data-vp"),vs2=g("data-vs2"),vr=g("data-vreset"),fx=g("data-fix"),pcm=g("data-pcomp"),pcx=g("data-pcx"),pdm=g("data-pdemo"),pon=g("data-pon"),psel=g("data-psel"),padd=g("data-padd"),pdel=g("data-pdel"),pnorm=g("data-pnorm"),peq=g("data-peq"),prm=g("data-prm"),fs=g("data-fs"),ru=g("data-ru"),rft=g("data-rfeat"),rg=g("data-rvg");
- if(fs){const k=fs.dataset.fs;fdir=k==fsk?-fdir:-1;fsk=k;render()}
+ const r=g("data-i"),t=g("data-t"),y=g("data-y"),s=g("data-s"),tpp=g("data-tp"),dpp=g("data-dp"),x=g("data-x"),zr=g("data-zr"),cs=g("data-co"),fm=g("data-fam"),vs=g("data-vs"),va=g("data-vall"),vg=g("data-vg"),vp=g("data-vp"),vs2=g("data-vs2"),vr=g("data-vreset"),fx=g("data-fix"),pcm=g("data-pcomp"),pcx=g("data-pcx"),pdm=g("data-pdemo"),pon=g("data-pon"),psel=g("data-psel"),padd=g("data-padd"),pdel=g("data-pdel"),pnorm=g("data-pnorm"),peq=g("data-peq"),prm=g("data-prm"),fs=g("data-fs"),vh=g("data-vh"),vsd=g("data-vsend"),ru=g("data-ru"),rft=g("data-rfeat"),rg=g("data-rvg");
+ if(vh){vH=+vh.dataset.vh;render()}
+ else if(vsd){const m=varMix(tiltW(sigAt(NAV.d.length-1,vH)));if(PORTS.length>=6)PORTS.shift();pSeq++;PORTS.push({id:pSeq,name:"모형 배분("+VHN[vH].replace("다음 ","")+")",w:m,on:true});selP=pSeq;saveSim();location.hash="sim"}
+ else if(fs){const k=fs.dataset.fs;fdir=k==fsk?-fdir:-1;fsk=k;render()}
  else if(ru){rUnit=ru.dataset.ru;rKey="";render()}
  else if(rft){rFeat=!rFeat;render()}
  else if(rg){rvg=rg.dataset.rvg;render()}

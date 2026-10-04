@@ -180,7 +180,7 @@ async function main() {
   }
   // 경제 지표를 같은 날짜 축에 맞춰 싣는다(I:usdkrw 등, 값이 없는 날은 직전 값)
   try {
-    const IND = await indicators(['usdkrw', 'sp500', 'nasdaq', 'kospi', 'us_10y', 'kr_10y', 'gold', 'stoxx50', 'nikkei', 'shanghai', 'hsi', 'nifty']);
+    const IND = await indicators(['usdkrw', 'sp500', 'nasdaq', 'kospi', 'us_10y', 'kr_10y', 'gold', 'stoxx50', 'nikkei', 'shanghai', 'hsi', 'nifty', 'vix']);
     for (const k in IND) { const e = [...IND[k]].sort((a, b) => a[0].localeCompare(b[0])); let j = 0, last = null; if (e.length < 100) continue;
       packV('I:' + k, axis.map(d => { while (j < e.length && e[j][0] <= d) last = e[j++][1]; return last; }), x => String(x)); }
   } catch (e) { log('WARN 경제 지표 ' + e.message); }
