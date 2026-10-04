@@ -330,21 +330,22 @@ function sigAt(i,H){const L=VLB[H],out={},jb=iBefore(addM(NAV.n[i],-L));
   if(k=="krb"||k=="glb"){const a=NAV.v["I:"+ind[0]];if(!a||a[i]==null||a[jb]==null){out[k]=null;continue}let lo=0,n=0;for(let q=iBefore(addM(NAV.n[i],-60));q<=i;q++)if(a[q]!=null){n++;if(a[q]<=a[i])lo++}
    const pc=lo/n*100,dy=a[i]-a[jb],carry=pc>=66?1:pc<=33?-1:0,ms=dy<-0.15?1:dy>0.15?-1:0;out[k]={s:VWC[H]*carry+(1-VWC[H])*ms,t:`금리 ${a[i].toFixed(2)}% (최근 5년 중 ${pcTxt(pc)}, ${carry>0?"높은 편":carry<0?"낮은 편":"중간"}) · 최근 ${L}개월 ${(dy>=0?"+":"")+dy.toFixed(2)}%p (${ms>0?"하락 중":ms<0?"상승 중":"횡보"})`};continue}
   const v=ind.map(px).filter(Boolean);if(!v.length){out[k]=null;continue}const mom=avgOf(v.map(x=>x.mom)),ma=avgOf(v.map(x=>x.ma));
-  out[k]={s:((mom>0?1:-1)+(ma>0?1:-1))/2,t:`최근 ${L}개월 ${sgn(mom)} · 200일 평균 대비 ${sgn(ma)}`}}
+  out[k]={s:((mom>0?1:-1)+(ma>0?1:-1))/2,m:mom,t:`최근 ${L}개월 ${sgn(mom)} · 200일 평균 대비 ${sgn(ma)}`}}
+ if(H>=6){const ks=EQK.slice(0,6).filter(k=>out[k]).sort((a,b)=>out[b].m-out[a].m),n=ks.length;ks.forEach((k,r)=>{const z=n>1?1-2*r/(n-1):0;out[k].s=(out[k].s+z)/2;out[k].t+=` · 주식 ${n}개 시장 중 ${r+1}위`})}
  return out}
 // 점수 → 비중: 기준 비중 × (1 + 0.4 × 점수), 남는 부분은 현금성(최소 2%)
 function tiltW(sig){const w={};let t=0;for(const [k,,b] of VA)if(k!="cash"){w[k]=b*(1+0.4*(sig[k]?sig[k].s:0));t+=w[k]}if(t>98){for(const k in w)w[k]*=98/t;t=98}w.cash=100-t;return w}
 // 과거 검증: 매월 말 같은 규칙으로 비중을 정했을 때, 이후 H개월 동안 기준 비중보다 나았는지
 function backtest(H){const me=[];for(let i=1;i<NAV.d.length;i++)if(NAV.d[i].slice(0,6)!=NAV.d[i-1].slice(0,6))me.push(i-1);
  const ex=[],last=NAV.d.length-1;
- for(const i of me.slice(-140)){const e=iBefore(addM(NAV.n[i],H));if(NAV.n[last]<addM(NAV.n[i],H)-3||e<=i)continue;const sig=sigAt(i,H);if(!sig.us||!sig.kr)continue;const w=tiltW(sig);let x=0;
+ for(const i of me.slice(-250)){const e=iBefore(addM(NAV.n[i],H));if(NAV.n[last]<addM(NAV.n[i],H)-3||e<=i)continue;const sig=sigAt(i,H);if(!sig.us||!sig.kr)continue;const w=tiltW(sig);let x=0;
   for(const [k,,b,ind] of VA){let r=0;const g=n=>{const a=NAV.v["I:"+n];return a&&a[i]!=null&&a[e]!=null?[a[i],a[e]]:null};
    if(k=="cash"){const y=g("kr_10y");r=y?Math.max(0,y[0]-0.7)*H/12:0}
    else if(k=="krb"||k=="glb"){const y=g(ind[0]);if(!y)continue;r=y[0]*H/12-(k=="krb"?5:6)*(y[1]-y[0])}
    else{const v=ind.map(g).filter(Boolean);if(!v.length)continue;r=avgOf(v.map(y=>(y[1]/y[0]-1)*100))}
    x+=(w[k]-b)/100*r}
   ex.push(x)}
- return ex.length?{n:ex.length,avg:avgOf(ex),win:ex.filter(x=>x>0).length/ex.length*100,from:NAV.d[me.slice(-140)[0]]}:null}
+ return ex.length?{n:ex.length,avg:avgOf(ex),win:ex.filter(x=>x>0).length/ex.length*100,from:NAV.d[me.slice(-250)[0]]}:null}
 const VMAP={kr:"인덱스주식형 2호",us:"미국주식형 3호",eu:"유럽주식형",jp:"글로벌주식형 2호",cn:"중국주식형",in:"아시아주식형 2호",krb:"채권형",glb:"글로벌채권형",gold:"골드투자형",cash:"MMF형"};
 function varMix(w){const m={};for(const k in w){const r=R_VAR.find(x=>x[1]==VMAP[k])||R_VAR.find(x=>x[1]=="MMF형");if(r)m[r[0]]=(m[r[0]]||0)+w[k]}
  const e=Object.entries(m).map(([c,v])=>[c,Math.floor(v/5)*5,v/5%1]);let rest=100-e.reduce((a,x)=>a+x[1],0);e.sort((a,b)=>b[2]-a[2]);for(const x of e){if(rest<=0)break;x[1]+=5;rest-=5}return Object.fromEntries(e.filter(x=>x[1]>0).map(x=>[x[0],x[1]]))}
@@ -363,7 +364,18 @@ function view(){
  // 자산별 표
  const mx=Math.max(...VA.map(x=>Math.max(x[2],w[x[0]])));
  h+=`<div class=wrap><table class=cmp><tr><th>자산<th>근거 (지표)<th>신호<th>기준 비중<th>모형 비중<th>차이<th></tr>`+VA.map(([k,n,b])=>{const g=sig[k],o=g?op(g.s):["자료 없음",""],d=w[k]-b;return `<tr><td class=l><b>${n}</b><td ${wrapTd(330)}>${g?g.t:"-"}<td><span class="${o[1]}">${k=="cash"?"-":o[0]}</span><td>${b}%<td><b>${w[k].toFixed(1)}%</b><td>${Math.abs(d)<0.05?"-":`<span class="${d>0?"pos":"neg"}">${(d>0?"+":"")+d.toFixed(1)}%p</span>`}<td class=l><span class=bar style="width:${w[k]/mx*120}px;background:#2a78d6"></span></tr>`}).join("")+`</table></div>`;
- h+=`<p class=note>규칙: 주식·금은 최근 ${VLB[vH]}개월 수익률의 부호(모멘텀)와 200일 평균 위/아래(추세)를 각각 ±1로 보고 평균합니다. 채권은 금리가 최근 5년 중 높은 편이면 +1(이자 매력), 낮은 편이면 −1이고, 최근 금리가 내리는 중이면 +1, 오르는 중이면 −1입니다(기간이 길수록 금리 수준에 더 큰 가중). 모형 비중 = 기준 비중 × (1 + 0.4 × 점수)이고 남는 부분은 현금성입니다. 기준 비중(주식 55·채권 30·금 5·현금 10)은 비교를 위한 출발점입니다.</p>`;
+ h+=`<p class=note>규칙: 주식·금은 최근 ${VLB[vH]}개월 수익률의 부호(모멘텀)와 200일 평균 위/아래(추세)를 각각 ±1로 보고 평균합니다. 6개월·1년 전망에서는 주식 6개 시장을 최근 수익률 순으로 줄 세운 점수(1위 +1 ~ 6위 −1)를 절반 섞습니다. 채권은 금리가 최근 5년 중 높은 편이면 +1(이자 매력), 낮은 편이면 −1이고, 최근 금리가 내리는 중이면 +1, 오르는 중이면 −1입니다(기간이 길수록 금리 수준에 더 큰 가중). 모형 비중 = 기준 비중 × (1 + 0.4 × 점수)이고 남는 부분은 현금성입니다. 기준 비중(주식 55·채권 30·금 5·현금 10)은 비교를 위한 출발점입니다.</p>`;
+ h+=`<h3 style="margin:22px 0 8px">규칙을 정한 근거 <span class=note>2026년 10월 검증, 2006~2015년과 2016년 이후를 따로 봄</span></h3><div class=wrap><table class=cmp><tr><th>시험한 규칙<th>결과<th>판단</tr>`+[
+  ["주식: 모멘텀 + 200일 평균 (기본)","초과 수익의 대부분이 여기서 나옴(1년 기준 +0.35%p 가운데 주식 +0.33, 금 +0.12, 채권 −0.06, 현금 −0.04)","사용"],
+  ["6개월·1년에 지역 간 상대 모멘텀 섞기","1년 정보비율 0.16→0.33(전반), 0.12→0.28(후반). 6개월도 두 기간 모두 개선. 1·3개월은 전반에 오히려 나빠짐","6개월·1년에만 사용"],
+  ["VIX가 25 이상이면 주식 축소","후반 3개월 +0.11→+0.06%p, 1년 +0.29→+0.15%p로 나빠짐","넣지 않음"],
+  ["미국 장단기 금리 역전 시 주식 축소","후반 1년 +0.29→+0.18%p로 나빠짐","넣지 않음"],
+  ["달러인덱스·구리 방향으로 한국·중국·인도 조정","모든 기간에서 차이가 ±0.03%p 이내","넣지 않음"],
+  ["변동성이 커지면 비중 축소","전반 1년 +0.41→+0.92%p였지만 후반 +0.29→−0.05%p. 기간에 따라 결과가 반대","넣지 않음"],
+  ["채권 신호를 끄거나 한쪽만 쓰기","어느 쪽이든 차이가 거의 없음. 채권 신호는 수익에 기여하지 못함","현행 유지(참고 표시)"],
+  ["신호 강도를 0.4에서 0.6·0.8로","평균 초과 수익은 늘지만 흔들림이 더 커져 정보비율은 하락","0.4 유지"],
+  ["미국 하이일드 스프레드","지표 저장소에 2023년 10월 이후 자료만 있어 검증 불가","보류"]
+ ].map(r=>`<tr><td class=l style="white-space:normal;min-width:200px"><b>${r[0]}</b><td ${wrapTd(420)}>${r[1]}<td>${r[2]}</tr>`).join("")+`</table></div><p class=note>수치는 매월 말 규칙을 적용했을 때 기준 비중 대비 평균 초과 수익(%p)과 정보비율(평균÷흔들림)입니다. 두 기간 모두에서 나아진 규칙만 넣었습니다. 지수는 현지 통화 기준, 채권 수익은 금리로 근사한 값입니다.</p>`;
  // TDF: 모형과 지역 구성이 가까운 순
  const tq=EQK.slice(0,6),tw=tq.map(k=>w[k]),ts=tw.reduce((a,b)=>a+b,0);
  const cand=R_TDF.filter(r=>r[12]==vin).map(r=>{const o=expo(r[0]);if(!o)return null;const es=tq.reduce((a,k)=>a+o.x[k],0);if(es<5)return null;return [r,tq.reduce((a,k,j)=>a+Math.abs(o.x[k]/es-tw[j]/ts),0)*50,o,es]}).filter(Boolean).sort((a,b)=>a[1]-b[1]);
