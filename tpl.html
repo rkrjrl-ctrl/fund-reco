@@ -375,7 +375,8 @@ function analyst(T,scope,lab,rr,AT,s,e,style,ex,nm,X){
  const allocOf=o=>AK.reduce((a,k)=>a+wOf(o,k)*F[k]/100,0);
  const won=v=>(v>=0?"+":"−")+Math.abs(Math.round(v*10000)).toLocaleString()+"원";
  let whyAbs="",absHead="";
- if(E.length&&AK.length){const avgO={x:Object.fromEntries(Object.keys(E[0][1].x).map(k=>[k,avgOf(E.map(y=>y[1].x[k]||0))])),fx:avgOf(E.map(y=>y[1].fx)),t:Object.fromEntries(TK.map(k=>[k,avgOf(E.map(y=>(y[1].t&&y[1].t[k])||0))]))};
+ const avgO=E.length?{x:Object.fromEntries(Object.keys(E[0][1].x).map(k=>[k,avgOf(E.map(y=>y[1].x[k]||0))])),fx:avgOf(E.map(y=>y[1].fx)),t:Object.fromEntries(TK.map(k=>[k,avgOf(E.map(y=>(y[1].t&&y[1].t[k])||0))]))}:null;
+ if(avgO&&AK.length){
   const pa=partsOf(avgO).sort((a,b)=>Math.abs(b[1])-Math.abs(a[1])),big=pa.filter(z=>Math.abs(z[1])>=0.2).slice(0,5),rest=av-big.reduce((a,z)=>a+z[1],0);
   const m=pa.find(z=>!z[0].startsWith("t:")&&(z[1]>=0)==(av>=0)&&Math.abs(z[1])>=0.2)||pa.find(z=>!z[0].startsWith("t:"))||pa[0];
   absHead=!m?"":m[0]=="fx"?(m[1]<0?"원화 값이 올라 해외 자산을 원화로 바꾼 값이 줄었기 때문입니다":"원화 값이 내려 해외 자산을 원화로 바꾼 값이 늘었기 때문입니다"):m[0]=="krb"||m[0]=="glb"?(m[1]<0?"금리가 올라 채권 값이 내렸기 때문입니다":"채권에서 이자와 값 상승으로 벌었기 때문입니다"):`${AN[m[0]]}${m[1]>=0?"이 오른 덕분입니다":"이 내렸기 때문입니다"}`;
@@ -395,6 +396,37 @@ function analyst(T,scope,lab,rr,AT,s,e,style,ex,nm,X){
   const R=[["한국 주식(코스피)",F.kr,G.kr],["미국 주식(S&P500)",F.us,G.us],["유럽 주식",F.eu,G.eu],["일본 주식",F.jp,G.jp],["중국 주식",F.cn,G.cn],["인도 주식",F.in,G.in],["금값",F.gold,G.gold],["1달러 값(원/달러)",F.fx,G.fx]].filter(r=>r[1]!=null).map(r=>`<tr><td class=l>${r[0]}<td>${pct(r[1])}<td>${r[2]==null?"-":pct(r[2])}<td class=l>${cmp(r[1],r[2])}</tr>`);
   const rt=(n,a,b)=>a?`<tr><td class=l>${n}<td>${pp(a[1]-a[0])}<td>${b?pp(b[1]-b[0]):"-"}<td class=l>${a[1]-a[0]>0.05?"올랐습니다 (채권 값에는 나쁨)":a[1]-a[0]<-0.05?"내렸습니다 (채권 값에는 좋음)":"거의 그대로입니다"}</tr>`:"";
   mk=`<p style="margin:10px 0 4px"><b>지난번(${X.prev[1]})과 나란히 보면</b></p>`+tbl(["무엇이","이번","지난번","풀이"],[...R,rt("미국 금리(10년)",uu,u2),rt("한국 금리(10년)",ku,k2)])}
+ // ── 언제 오르고 내렸나: 한 달 리포트는 주 단위, 그보다 길면 달 단위로 쪼개 보기 ──
+ let tl="";
+ {const eE=Math.min(e,DMAX),cuts=[],md=n=>dstr(n).slice(5);
+  for(let a=s;a<=eE;){const d=new Date(a*864e5),b=Math.min(eE,e-s<45?a+6-(d.getUTCDay()+6)%7:Date.UTC(d.getUTCFullYear(),d.getUTCMonth()+1,0)/864e5);cuts.push([a,b,e-s<45?md(a)+"~"+md(b):(d.getUTCMonth()+1)+"월"]);a=b+1}
+  const seg=cuts.filter(([a,b])=>iBefore(b)>iBefore(a-1)).map(([a,b,l])=>{const z=rr.map(x=>[x,perRet(x[0][0],a,b)]).filter(y=>y[1]!=null).sort((p,q)=>q[1]-p[1]);return z.length?{l,av:avgOf(z.map(y=>y[1])),up:z.filter(y=>y[1]>0).length,n:z.length,top:z[0],bot:z[z.length-1],f:factors(a,b),u:perEnds("I:us_10y",a,b)}:null}).filter(Boolean);
+  // 그 구간의 가장 큰 까닭: 평균 펀드의 자산 몫 × 그 구간의 등락. 평균 수익률의 40% 이상을 설명할 때만 적는다
+  const cause=r=>{if(Math.abs(r.av)<0.15)return "거의 제자리";if(!avgO)return "-";const z=AK.filter(k=>r.f[k]!=null).map(k=>[k,(wOf(avgO,k)||0)*r.f[k]/100]).filter(y=>(y[1]>=0)==(r.av>=0)).sort((p,q)=>Math.abs(q[1])-Math.abs(p[1]))[0];
+   return z&&Math.abs(z[1])>=0.4*Math.abs(r.av)?AN[z[0]]+(z[0]=="fx"?(z[1]<0?" (원화 값이 오름)":" (원화 값이 내림)"):z[1]>=0?" 상승":" 하락")+" <span class=note>"+pp(z[1])+"</span>":"여러 가지가 섞임"};
+  // 하루 단위: 펀드 평균이 가장 많이 오른 날과 내린 날, 그날 펀드 값에 반영된 시장(반영이 늦는 만큼 앞날의 시장 값)
+  const i0=iBefore(s-1),i1=iBefore(e),days=[];
+  for(let i=i0+1;i<=i1;i++){const v=rr.map(x=>{const a=NAV.v[x[0][0]];return a[i]!=null&&a[i-1]!=null?(a[i]/a[i-1]-1)*100:null}).filter(y=>y!=null);if(v.length>=N/2)days.push([i,avgOf(v),v.filter(y=>y>0).length,v.length])}
+  const dch=(k,i,L)=>{const a=NAV.v["I:"+k];if(!a)return null;const p=a[i-1-L],q=a[i-L];return p==null||q==null?null:(q/p-1)*100};
+  const dayTxt=d=>{const m=[["코스피",dch("kospi",d[0],1)],["S&P500",dch("sp500",d[0],2)],["1달러 값",dch("usdkrw",d[0],0)]].filter(y=>y[1]!=null);return md(NAV.n[d[0]])+" (펀드 평균 "+sgn(d[1])+", "+d[3]+"개 중 "+d[2]+"개가 오름)"+(m.length?" — 그날 펀드 값에 반영된 시장: "+m.map(y=>y[0]+" "+sgn(y[1])).join(", "):"")};
+  if(seg.length>=2){const bs=seg.slice().sort((p,q)=>q.av-p.av),hi=bs[0],lo=bs[bs.length-1],dU=days.slice().sort((p,q)=>q[1]-p[1])[0],dD=days.slice().sort((p,q)=>p[1]-q[1])[0],un=e-s<45?"주":"달";
+   tl='<p style="margin:0 0 6px">기간을 '+un+' 단위로 잘라, 구간마다 펀드 평균과 시장이 어떻게 움직였는지 봤습니다. '+(hi.av>0&&lo.av<0?'가장 많이 번 구간은 <b>'+hi.l+'</b>(평균 '+sgn(hi.av)+'), 가장 많이 잃은 구간은 <b>'+lo.l+'</b>(평균 '+sgn(lo.av)+')입니다.':hi.av>0?'모든 구간에서 올랐고, 가장 많이 번 구간은 <b>'+hi.l+'</b>(평균 '+sgn(hi.av)+')입니다.':'모든 구간에서 내렸고, 가장 많이 잃은 구간은 <b>'+lo.l+'</b>(평균 '+sgn(lo.av)+')입니다.')+'</p>'+
+    tbl(["구간","펀드 평균","오른 펀드","가장 큰 까닭","한국 주식","미국 주식","1달러 값","미국 금리(10년)","가장 잘한 펀드","가장 못한 펀드"],seg.map(r=>'<tr><td class=l><b>'+r.l+'</b><td>'+pct(r.av)+'<td>'+r.n+'개 중 '+r.up+'개<td class=l>'+cause(r)+'<td>'+pct(r.f.kr)+'<td>'+pct(r.f.us)+'<td>'+pct(r.f.fx)+'<td>'+(r.u?pp(r.u[1]-r.u[0]):"-")+'<td class=l>'+nm(r.top[0])+' <span class=note>'+sgn(r.top[1])+'</span><td class=l>'+nm(r.bot[0])+' <span class=note>'+sgn(r.bot[1])+'</span></tr>'))+
+    (dU&&dD&&days.length>=5?'<ul style="margin:8px 0 0 18px"><li><b>가장 많이 오른 날:</b> '+dayTxt(dU)+'</li><li><b>가장 많이 내린 날:</b> '+dayTxt(dD)+'</li><li>거래한 '+days.length+'일 가운데 펀드 평균이 오른 날은 '+days.filter(d=>d[1]>0).length+'일, 내린 날은 '+days.filter(d=>d[1]<0).length+'일입니다.</li></ul>':"")+
+    '<p class=note style="margin:6px 0 0">펀드마다 구간별 수익률을 차례로 이어 붙이면(곱하면) 기간 전체 수익률이 됩니다(표의 평균끼리 이어 붙여도 거의 같습니다). 시장 숫자는 펀드 값에 반영되는 날에 맞춘 값이라(한국 주식은 하루 전, 해외 주식·미국 금리는 이틀 전), 달력의 같은 구간 숫자와 조금 다릅니다. "가장 큰 까닭"은 펀드들의 평균 자산 몫에 그 구간의 등락을 곱한 값이 평균 수익률의 40% 이상일 때만 적었습니다. 구간이 짧을수록 이 계산은 덜 정확합니다.</p>';
+   sum.push('가장 크게 움직인 '+un+'는 '+(Math.abs(lo.av)>Math.abs(hi.av)?lo.l+'(평균 '+sgn(lo.av)+')':hi.l+'(평균 '+sgn(hi.av)+')')+'입니다.')}}
+ // ── 얼마나 흔들렸나: 기간 안에서 가장 많이 빠진 폭, 가장 나빴던 하루, 가격 출렁임 ──
+ let risk="";const RK={};
+ {const i0=iBefore(s-1),i1=iBefore(e),R=rr.map((x,k)=>{const st=rangeStat(x[0][0],NAV.n[i0],e),a=NAV.v[x[0][0]];if(!st)return null;let wd=0,wi=-1,p=null;for(let i=i0;i<=i1;i++){if(a[i]==null)continue;if(p!=null){const r=(a[i]/p-1)*100;if(r<wd){wd=r;wi=i}}p=a[i]}return RK[x[0][0]]={x,k,mdd:st.mdd,vol:st.vol,wd,wi}}).filter(Boolean);
+  if(R.length>=2){const am=avgOf(R.map(r=>r.mdd)),bm=R.slice().sort((p,q)=>q.mdd-p.mdd),h=Math.floor(R.length/2),th=avgOf(R.slice(0,h).map(r=>r.mdd)),bh=avgOf(R.slice(-h).map(r=>r.mdd));
+   const calm=new Set(bm.slice(0,Math.ceil(R.length/3)).map(r=>r.x)),good=R.filter(r=>r.k<Math.ceil(N/3)&&calm.has(r.x)),mx=Math.max(0.01,...R.map(r=>-r.mdd));
+   risk='<p style="margin:0 0 6px">수익률이 같아도 가는 길이 다릅니다. 기간 안에서 가장 높았던 값에서 얼마나 빠졌었는지(가장 많이 빠진 폭)를 보면, 그 펀드를 들고 있을 때 얼마나 마음이 불편했을지 알 수 있습니다.</p>'+
+    tbl(["펀드","수익률","가장 많이 빠진 폭","","가장 나빴던 하루","가격 출렁임(1년 기준)"],R.map(r=>'<tr class="'+(X.isMe(r.x[0])?"me":"")+'"><td class=l><span class=tag>'+nm(r.x)+'</span><td>'+pct(r.x[1])+'<td>'+pct(r.mdd)+'<td class=l><span class=bar style="width:'+(-r.mdd/mx*90)+'px;background:#64b5f6"></span><td>'+(r.wi<0?"-":pct(r.wd)+' <span class=note>('+dstr(NAV.n[r.wi]).slice(5)+')</span>')+'<td>'+r.vol.toFixed(1)+'%</tr>'))+
+    '<ul style="margin:8px 0 0 18px"><li>펀드들은 기간 중 가장 높았던 값에서 평균 <b>'+Math.abs(am).toFixed(2)+'%</b>까지 빠졌습니다. 가장 덜 빠진 펀드는 '+nm(bm[0].x)+'('+sgn(bm[0].mdd)+'), 가장 많이 빠진 펀드는 '+nm(bm[bm.length-1].x)+'('+sgn(bm[bm.length-1].mdd)+')입니다.</li>'+
+    '<li>성적이 앞쪽 절반인 펀드들은 평균 '+Math.abs(th).toFixed(2)+'%, 뒤쪽 절반은 평균 '+Math.abs(bh).toFixed(2)+'% 빠졌습니다. '+(Math.abs(th-bh)<0.3?"흔들린 정도는 비슷했습니다.":th>bh?"잘 번 펀드들이 덜 흔들리기까지 했습니다.":"잘 번 펀드들이 더 많이 흔들렸습니다. 더 큰 출렁임을 견딘 대가로 번 것입니다.")+'</li>'+
+    '<li>'+(good.length?'<b>잘 벌면서 덜 빠진 펀드</b>(수익률도 앞쪽 3분의 1, 빠진 폭도 작은 쪽 3분의 1): '+good.map(r=>nm(r.x)).join(", ")+'.':'수익률도 앞쪽이면서 빠진 폭도 작은 펀드는 없었습니다.')+'</li></ul>'+
+    '<p class=note style="margin:6px 0 0"><b>가장 많이 빠진 폭</b>은 기간이 시작되기 전날부터 따져, 그때까지 가장 높았던 값에서 가장 낮은 값까지 내려간 비율입니다. <b>가격 출렁임</b>은 하루하루 오르내린 크기를 1년 기준으로 바꾼 값으로, 클수록 많이 흔들린 것입니다.</p>';
+   sum.push('기간 중 가장 높았던 값에서 평균 '+Math.abs(am).toFixed(2)+'%까지 빠진 적이 있습니다.')}}
  // ── 2. 왜 갈렸나 (이유 막대) ──
  let p3="";
  if(ok.length&&d0&&main!="small"){const parts=drv.filter(x=>x[1]/tot>=0.06).slice(0,5).map(x=>x[0].startsWith("t:")?[TN[x[0].slice(2)][0],x[1]/tot*100,`${TN[x[0].slice(2)][1]} ${(TFv[x[0].slice(2)]>=0?"+":"")+TFv[x[0].slice(2)].toFixed(2)}%p`]:[DN[x[0]]||PN[x[0]],x[1]/tot*100,`${FNM[x[0]][1]} ${sgn(F[x[0]])}`]);parts.push(["개별 종목 선택·비용 (위 항목으로 설명 안 되는 부분)",resSd/tot*100,""]);parts.sort((a,b)=>b[1]-a[1]);
@@ -436,7 +468,7 @@ function analyst(T,scope,lab,rr,AT,s,e,style,ex,nm,X){
  // ── 5. 펀드 하나하나 ──
  const dev=o=>{const z=HK.map(([k,n])=>[k,n,wOf(o,k)-aw[k]]).filter(r=>Math.abs(r[2])>=5).sort((a,b)=>Math.abs(b[2])-Math.abs(a[2])).slice(0,3);return z.length?"남들과 다른 점: "+z.map(r=>r[0]=="fx"?`환율을 그대로 받는 부분이 평균보다 ${Math.abs(r[2]).toFixed(0)}%p ${r[2]>0?"많습니다":"적습니다"}`:`${r[1]} 몫이 평균보다 ${Math.abs(r[2]).toFixed(0)}%p ${r[2]>0?"큽니다":"작습니다"}`).join(", ")+".":"남들과 다른 점: 자산별 몫이 평균과 비슷합니다."};
  const one=(x,k)=>{const a=AT[k],o=PE(x[0][0]),p=X.prk[x[0][0]],note=T?famNote(x[0][13]):(vnote(x[0])||{}).d;
-  return `<div style="border:1px solid #e3e5ee;border-radius:6px;padding:8px 12px;margin:6px 0;${X.isMe(x[0])?"background:#fffbe0":""}"><div><b>${k+1}위 ${nm(x)}</b> &nbsp;${pct(x[1])} <span class=note>평균보다 ${pp(x[1]-av)}${p?` · 지난번 ${p}위${p-(k+1)>0?" → "+(p-(k+1))+"계단 올랐습니다":p-(k+1)<0?" → "+((k+1)-p)+"계단 내려갔습니다":" → 그대로입니다"}`:""}</span></div>${o&&AK.length?(z=>`<div><b>수익률 ${sgn(x[1])}을 나눠 보면:</b> ${z.map(y=>AN[y[0]]+" "+pp(y[1])).join(", ")}${z.length?", ":""}그 밖 ${pp(x[1]-z.reduce((p,y)=>p+y[1],0))}</div>`)(partsOf(o).sort((p,q)=>Math.abs(q[1])-Math.abs(p[1])).filter(y=>Math.abs(y[1])>=0.2).slice(0,3)):""}${a?`<div><b>남들보다 ${x[1]>=av?"잘한":"못한"} 까닭:</b> ${a.out.join(" ")}</div>`:""}${o&&E.length?`<div>${dev(o)}</div>`:""}${note?`<div class=note>이 펀드는: ${esc(note)}</div>`:""}</div>`};
+  return `<div style="border:1px solid #e3e5ee;border-radius:6px;padding:8px 12px;margin:6px 0;${X.isMe(x[0])?"background:#fffbe0":""}"><div><b>${k+1}위 ${nm(x)}</b> &nbsp;${pct(x[1])} <span class=note>평균보다 ${pp(x[1]-av)}${p?` · 지난번 ${p}위${p-(k+1)>0?" → "+(p-(k+1))+"계단 올랐습니다":p-(k+1)<0?" → "+((k+1)-p)+"계단 내려갔습니다":" → 그대로입니다"}`:""}${RK[x[0][0]]?` · 기간 중 가장 많이 빠진 폭 ${sgn(RK[x[0][0]].mdd)}`:""}</span></div>${o&&AK.length?(z=>`<div><b>수익률 ${sgn(x[1])}을 나눠 보면:</b> ${z.map(y=>AN[y[0]]+" "+pp(y[1])).join(", ")}${z.length?", ":""}그 밖 ${pp(x[1]-z.reduce((p,y)=>p+y[1],0))}</div>`)(partsOf(o).sort((p,q)=>Math.abs(q[1])-Math.abs(p[1])).filter(y=>Math.abs(y[1])>=0.2).slice(0,3)):""}${a?`<div><b>남들보다 ${x[1]>=av?"잘한":"못한"} 까닭:</b> ${a.out.join(" ")}</div>`:""}${o&&E.length?`<div>${dev(o)}</div>`:""}${note?`<div class=note>이 펀드는: ${esc(note)}</div>`:""}</div>`};
  let each="";
  if(N<=16)each=rr.map(one).join("");
  else each=rr.slice(0,5).map(one).join("")+`<details style="margin:6px 0"><summary style="cursor:pointer;color:#1f2560;font-weight:700">가운데 ${N-10}개 펀드도 보기</summary>${rr.slice(5,N-5).map((x,k)=>one(x,k+5)).join("")}</details>`+rr.slice(N-5).map((x,k)=>one(x,N-5+k)).join("");
@@ -470,11 +502,13 @@ function analyst(T,scope,lab,rr,AT,s,e,style,ex,nm,X){
  (whyAbs?sec(++k,av>=0?"왜 올랐나요?":"왜 내렸나요?",whyAbs):"")+
  (X.picks?sec(++k,"앞으로는 어떻게 하나요? — 전략과 추천 펀드",X.picks):"")+
  (p1?sec(++k,"시장에서 무슨 일이 있었나요?",`<p style="margin:0">${p1}</p>`+mk):"")+
+ (tl?sec(++k,"언제 오르고 언제 내렸나요?",tl):"")+
  (p3||style.length?sec(++k,"왜 순위가 갈렸나요?",(p3?`<p style="margin:0">펀드끼리 성적이 달랐던 이유를 크기 순으로 나누면 이렇습니다.</p>`+p3:"")+(style.length?`<ul style="margin:0 0 0 18px">${style.map(x=>`<li>${x}</li>`).join("")}</ul>`:"")):"")+
  (selT?sec(++k,"종목·업종 선택은 어떻게 달랐나요? (자료로 나눠 보기)",selT):"")+
  (grp.length?sec(++k,"무엇을 많이 담았느냐에 따라 성적이 어떻게 달랐나요?",`<p style="margin:0 0 6px">펀드를 두 무리로 나눠 평균 성적을 비교했습니다. 보통은 많이 담은 절반과 적게 담은 절반으로 나누고, 아예 안 담은 펀드가 많은 것(금 등)은 담은 펀드와 안 담은 펀드로 나눴습니다.</p>`+tbl(["비교한 것","한쪽 무리의 평균 수익률","다른 쪽 무리의 평균 수익률","차이","풀이"],grp)):"")+
  (h2h?sec(++k,"1위와 꼴찌는 무엇이 달랐나요?",h2h):"")+
  sec(++k,"펀드 하나하나 살펴보기",each+ex)+
+ (risk?sec(++k,"얼마나 흔들렸나요?",risk):"")+
  (mv?sec(++k,`지난번(${X.prev[1]})과 비교하면`,mv):"")+
  (lng?sec(++k,"길게 봐도 잘했나요?",`<p style="margin:0 0 6px">이번 기간만 보면 운이 좋았을 수도 있습니다. 그래서 같은 날을 끝으로 최근 1년, 최근 3년 순위도 함께 봅니다.</p>`+lng):"")+
  (c.length?sec(++k,"앞으로 살펴볼 점",`<ul style="margin:0 0 0 18px">${c.map(x=>`<li>${x}</li>`).join("")}</ul>`):"")+
@@ -606,7 +640,7 @@ function report(kind){
  let h=T?`<h2>TDF 기간 리포트 <span class=note>— 한 달·석 달·여섯 달·1년 동안 누가 잘했고, 왜 그랬는지</span></h2><div class=tog><b>은퇴 목표 연도</b>`+VINT.map(y=>`<a data-y="${y}" class="${y==vin?"on":""}">${y}</a>`).join("")+`</div>`
   :`<h2>변액 기간 리포트 <span class=note>— 한 달·석 달·여섯 달·1년 동안 어느 변액 펀드가 잘했고, 왜 그랬는지</span></h2><div class=tog><b>유형</b>`+VGRP.map(g=>`<a data-rvg="${g}" class="${g==rvg?"on":""}">${g}</a>`).join("")+`</div>`;
  h+=`<div class=tog><b>단위</b>`+Object.keys(UN).map(k=>`<a data-ru="${k}" class="${k==rUnit?"on":""}">${UN[k][0]}</a>`).join("")+`<span style="width:12px"></span><b>기간</b><select id=rsel style="padding:5px">`+P.map(p=>`<option value="${p[0]}" ${p[0]==rKey?"selected":""}>${p[1]}${p[4]?" (진행 중)":""}</option>`).join("")+`</select>`+`<span style="width:12px"></span><a data-rfeat="1" class="${rFeat?"on":""}">펀드가 담은 것 ${rFeat?"닫기":"보기"}</a>`+`</div>`;
- h+=guide(T?"rep":"vrep",["<b>이 화면은</b> 정해진 기간 동안 펀드들의 성적표와, 왜 그런 순위가 됐는지 설명하는 보고서입니다.","<b>고르는 법:</b> ① <b>단위</b>에서 월(한 달)·분기(석 달)·반기(여섯 달)·연도(1년) 중 하나를 고르고 ② <b>기간</b>에서 보고 싶은 때를 고릅니다. \"(진행 중)\"은 아직 끝나지 않은 기간입니다.","<b>보고서 읽는 순서:</b> 맨 위 큰 글씨가 결론입니다(얼마나 오르내렸고, 왜 그랬는지). 바로 아래 ① \"왜 올랐나요/내렸나요\"에서 까닭을 돈으로 풀어 보여 주고 ② \"앞으로는 어떻게 하나요\"에서 전략과 점수가 높은 펀드를 보여 줍니다. 그 뒤로 ③ 시장에서 있었던 일 ④ 순위가 갈린 이유 ⑤ 무엇을 많이 담은 펀드가 잘했는지 ⑥ 1위와 꼴찌 비교 ⑦ 펀드 하나하나 ⑧ 지난번과 비교 ⑨ 길게 본 순위 ⑩ 살펴볼 점이 이어집니다.","<b>\"왜 순위가 갈렸나요?\"의 막대:</b> 펀드끼리 성적이 달랐던 이유를 크기대로 나눈 것입니다. 예를 들어 \"환율 영향을 받는 정도 약 47%\"는 성적 차이의 절반 가까이가 환율 때문이었다는 뜻입니다.","<b>그래프:</b> 기간이 시작되기 바로 전날을 0%로 놓고 기간 동안의 움직임을 그렸습니다.","<b>순위표:</b> \"직전 기간 순위\" 옆의 ▲3은 지난번보다 3계단 올랐다는 뜻, ▼2는 2계단 내려갔다는 뜻입니다. 맨 오른쪽 칸에 그 펀드가 그 순위가 된 까닭이 적혀 있습니다.","<b>맨 아래 \"흐름\" 표:</b> 최근 여섯 번의 기간 동안 성적과 순위(괄호 안)가 어떻게 바뀌었는지 보여줍니다. 한 번 잘한 펀드가 계속 잘하는지 볼 수 있습니다.","<b>\"펀드가 담은 것 보기\" 단추</b>를 누르면 각 펀드가 돈을 어디에 담았는지 표가 펼쳐집니다."]);
+ h+=guide(T?"rep":"vrep",["<b>이 화면은</b> 정해진 기간 동안 펀드들의 성적표와, 왜 그런 순위가 됐는지 설명하는 보고서입니다.","<b>고르는 법:</b> ① <b>단위</b>에서 월(한 달)·분기(석 달)·반기(여섯 달)·연도(1년) 중 하나를 고르고 ② <b>기간</b>에서 보고 싶은 때를 고릅니다. \"(진행 중)\"은 아직 끝나지 않은 기간입니다.","<b>보고서 읽는 순서:</b> 맨 위 큰 글씨가 결론입니다(얼마나 오르내렸고, 왜 그랬는지). 바로 아래 ① \"왜 올랐나요/내렸나요\"에서 까닭을 돈으로 풀어 보여 주고 ② \"앞으로는 어떻게 하나요\"에서 전략과 점수가 높은 펀드를 보여 줍니다. 그 뒤로 ③ 시장에서 있었던 일 ④ 언제 오르고 내렸는지(주·달 단위) ⑤ 순위가 갈린 이유 ⑥ 종목·업종 선택 ⑦ 무엇을 많이 담은 펀드가 잘했는지 ⑧ 1위와 꼴찌 비교 ⑨ 펀드 하나하나 ⑩ 얼마나 흔들렸는지 ⑪ 지난번과 비교 ⑫ 길게 본 순위 ⑬ 살펴볼 점이 이어집니다.","<b>\"왜 순위가 갈렸나요?\"의 막대:</b> 펀드끼리 성적이 달랐던 이유를 크기대로 나눈 것입니다. 예를 들어 \"환율 영향을 받는 정도 약 47%\"는 성적 차이의 절반 가까이가 환율 때문이었다는 뜻입니다.","<b>그래프:</b> 기간이 시작되기 바로 전날을 0%로 놓고 기간 동안의 움직임을 그렸습니다.","<b>순위표:</b> \"직전 기간 순위\" 옆의 ▲3은 지난번보다 3계단 올랐다는 뜻, ▼2는 2계단 내려갔다는 뜻입니다. 맨 오른쪽 칸에 그 펀드가 그 순위가 된 까닭이 적혀 있습니다.","<b>맨 아래 \"흐름\" 표:</b> 최근 여섯 번의 기간 동안 성적과 순위(괄호 안)가 어떻게 바뀌었는지 보여줍니다. 한 번 잘한 펀드가 계속 잘하는지 볼 수 있습니다.","<b>\"펀드가 담은 것 보기\" 단추</b>를 누르면 각 펀드가 돈을 어디에 담았는지 표가 펼쳐집니다."]);
  if(rFeat)h+=T?featTable(rows,"tdf"):vfeatTable(rows);
  if(rr.length<2)return h+`<p class=note>이 기간에 비교할 ${scope} 펀드가 부족합니다.</p>`;
  // ── 설명 ──
