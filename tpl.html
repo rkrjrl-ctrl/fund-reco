@@ -20,7 +20,6 @@ input,select{font:inherit;font-size:14.5px;border:1px solid var(--rule2);border-
 input[type=checkbox]{min-height:0;width:18px;height:18px;accent-color:var(--ink)}
 a:focus-visible,summary:focus-visible,input:focus-visible,select:focus-visible{outline:2px solid var(--ink);outline-offset:2px}
 main>p.note{border-top:1px solid var(--rule);padding-top:14px;margin-top:28px;line-height:1.7}
-@media(max-width:700px){body{font-size:15px}.brand{padding-bottom:0;width:100%}nav a{padding:10px 10px 9px!important}h2{font-size:21px}main{padding:14px 12px 32px}}
 table.cmp th{padding:8px 4px;font-size:13px;white-space:normal;line-height:1.25}table.cmp td{padding:7px 4px;font-size:14px}table.cmp .tag{white-space:nowrap}
 .guide{margin:0 0 18px;line-height:1.75;font-size:14.5px}
 .guide[open]{background:#fff;border:1px solid var(--rule);border-radius:12px;padding:12px 18px}
@@ -94,6 +93,7 @@ td.k{background:#f6f7fb;font-weight:bold;text-align:left;white-space:nowrap}
 .hold s{display:inline-block;height:8px;background:#7b86d6;text-decoration:none}
 .hint{font-size:12px;color:#666;margin-left:auto}
 .hint a{padding:2px 10px;font-size:12px}
+@media(max-width:700px){body{font-size:15px}.brand{padding-bottom:0;width:100%}nav a{padding:10px 10px 9px!important}h2{font-size:23px}h2 .note{font-size:14.5px}h3{font-size:18px}main{padding:14px 12px 32px}table{font-size:13.5px}td,th{padding:8px 6px}main>#v>table th{white-space:normal;width:auto!important;word-break:keep-all}.card{padding:16px 14px}.kv{font-size:23px}.kpi{padding:13px 14px}}
 </style></head><body><header><div class=hd><div class=brand>주요 펀드현황</div>
 <nav id=top><a data-t="home" data-g="home">추천 라인업</a><a data-t="tdf" data-g="tdf">TDF</a><a data-t="var" data-g="var">변액</a><a data-t="pen3" data-g="pen">연금 계산기</a></nav></div></header><main><div id=sub class=tog></div>
 <div id="v"></div>
@@ -588,7 +588,7 @@ function analyst(T,scope,lab,rr,AT,s,e,style,ex,nm,X){
  const tile=(t,v,u)=>`<div class=kpi><div class=kt>${t}</div><div class=kv>${v}</div><div class=ku>${u}</div></div>`;
  let k=0;
  return `<div class=card style="line-height:1.75;padding:0;overflow:hidden"><div style="background:#10283a;color:#fff;padding:10px 18px;display:flex;justify-content:space-between;flex-wrap:wrap;gap:6px;font-size:13px"><span><b>펀드 성과 리포트</b> · ${who}</span><span>${lab} · 자료 기준일 ${dstr(Math.min(e,DMAX))}</span></div><div style="padding:16px 18px">
- <div style="font-size:12px;color:#888;font-weight:700">결론</div><div style="font:700 25px/1.4 var(--serif);margin:0 0 6px;color:#10283a;letter-spacing:-.015em">${who}는 평균 ${sgn(av)} ${av>=0?"올랐습니다":"내렸습니다"}.${absHead?" "+absHead+".":""}</div><div style="font-size:15px;font-weight:600;margin:0 0 12px;color:#444">펀드끼리 비교하면: ${head}</div>
+ <div style="font-size:12px;color:#888;font-weight:700">결론</div><div style="font:700 clamp(19px,4.6vw,25px)/1.4 var(--serif);margin:0 0 6px;color:#10283a;letter-spacing:-.015em">${who}는 평균 ${sgn(av)} ${av>=0?"올랐습니다":"내렸습니다"}.${absHead?" "+absHead+".":""}</div><div style="font-size:15px;font-weight:600;margin:0 0 12px;color:#444">펀드끼리 비교하면: ${head}</div>
  <div style="background:#f3f4f8;border-left:4px solid #10283a;padding:10px 14px;margin-bottom:12px"><b>핵심 요약</b><ul style="margin:4px 0 0 18px">${sum.map(x=>`<li>${x}</li>`).join("")}</ul></div>
  <div class=kpis>${tile("평균 수익률",pct(av),N+"개 펀드")}${tile("1위",pct(rr[0][1]),nm(rr[0]))}${tile("꼴찌",pct(rr[N-1][1]),nm(rr[N-1]))}${tile("1위와 꼴찌 차이",sp.toFixed(2)+"%p","클수록 펀드 선택이 중요")}</div>`+story+
  (whyAbs?sec(++k,av>=0?"왜 올랐나요?":"왜 내렸나요?",whyAbs):"")+
