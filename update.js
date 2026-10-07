@@ -168,6 +168,7 @@ async function main() {
   try { ML = await require('./metlife.js')({ cacheFile: path.join(ROOT, 'metlife-cache.json'), log, retry, sleep, today: new Date(Date.now() + 9 * 3600e3).toISOString().slice(0, 10).replace(/-/g, '') }); }
   catch (e) { log('WARN 메트라이프 ' + e.message); ML = loadMlCache(); if (!ML) throw e; log('WARN 메트라이프 캐시로 진행'); }
   const PENS = await require('./pension.js')({ file: path.join(ROOT, 'pension.json'), log });
+  const LAWW = await require('./lawwatch.js')({ file: path.join(ROOT, 'lawwatch.json'), log });
   // 메트라이프는 평일마다 값을 싣기 때문에 공휴일(예: 임시공휴일)이 섞인다. 공모펀드 거래일 범위 안에서는 공모펀드가 있는 날만 축에 둔다.
   const realD = new Set([...okIds.flatMap(p => S[p].d), ...Object.values(NAVF).flatMap(n => n.map(x => x[0])), ...Object.values(NAVH).flatMap(n => n.map(x => x[0]))]);
   const realMin = [...realD].sort()[0];
@@ -254,7 +255,8 @@ const LB=${JSON.stringify(LB)};
 const NOTE=${JSON.stringify(NOTE)};
 const HOLD_STATIC=${JSON.stringify(HOLD_STATIC)};
 const AXIS="${axis.join(' ')}";\nconst R_TDF=[\n${R_TDF.map(r => JSON.stringify(r)).join(',\n')}\n];\nconst R_EXTRA=[\n${R_EXTRA.map(r => JSON.stringify(r)).join(',\n')}\n];\nconst ERAS=${JSON.stringify(ML.eras)};
-const R_VAR=[\n${R_VAR.map(r => JSON.stringify(r)).join(',\n')}\n];\nconst NOFF=${JSON.stringify(NOFF)};\nconst HOLD_AUTO=${JSON.stringify(HOLD_AUTO)};\nconst TINFO=${JSON.stringify(TINFO)};\nconst TNOTE=${JSON.stringify(readJson(path.join(ROOT, 'tdf-notes.json'), {}))};\nconst VINFO=${JSON.stringify(Object.fromEntries(Object.entries(ML.comp || {}).map(([c, v]) => ['M:' + c, v])))};\nconst PEN=${JSON.stringify(PENS)};\nconst VNOTE=${JSON.stringify(readJson(path.join(ROOT, 'metlife-notes.json'), {}))};\nconst NAVS={\n${Object.keys(V).map(k => JSON.stringify(k) + ':' + JSON.stringify(V[k])).join(',\n')}\n};`;
+const R_VAR=[\n${R_VAR.map(r => JSON.stringify(r)).join(',\n')}\n];\nconst NOFF=${JSON.stringify(NOFF)};\nconst HOLD_AUTO=${JSON.stringify(HOLD_AUTO)};\nconst TINFO=${JSON.stringify(TINFO)};\nconst TNOTE=${JSON.stringify(readJson(path.join(ROOT, 'tdf-notes.json'), {}))};\nconst VINFO=${JSON.stringify(Object.fromEntries(Object.entries(ML.comp || {}).map(([c, v]) => ['M:' + c, v])))};\nconst PEN=${JSON.stringify(PENS)};
+const LAWW=${JSON.stringify(LAWW)};\nconst VNOTE=${JSON.stringify(readJson(path.join(ROOT, 'metlife-notes.json'), {}))};\nconst NAVS={\n${Object.keys(V).map(k => JSON.stringify(k) + ':' + JSON.stringify(V[k])).join(',\n')}\n};`;
   const html = fs.readFileSync(path.join(ROOT, 'tpl.html'), 'utf8').replace('/*@@DATA@@*/', () => data).replace(/@@ASOF@@/g, asof).replace('@@UPDATED@@', kst + ' (KST)');
   if (html.length < 200000) throw new Error('생성된 HTML이 비정상적으로 작음');
   let saved = 0;
