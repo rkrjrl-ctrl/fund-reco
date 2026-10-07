@@ -60,6 +60,19 @@ td.k{background:#f6f7fb;font-weight:bold;text-align:left;white-space:nowrap}
 .card p,.card li{max-width:84ch}
 .prose{line-height:1.8}
 @media(min-width:900px){.prose{padding-right:max(22px,calc(100% - 88ch))}}
+.fgrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(270px,1fr));gap:14px;margin-bottom:14px;padding-bottom:14px;border-bottom:1px solid var(--rule)}
+.fcard{display:flex;flex-direction:column;gap:5px;background:#fff;border:1px solid var(--rule);border-radius:14px;padding:18px 18px 14px;min-width:0;cursor:pointer;color:var(--text);transition:border-color .15s,box-shadow .15s}
+.fcard:hover{border-color:var(--ink);box-shadow:0 6px 18px -12px #10283a80}
+.ftype{font-size:13px;font-weight:600;color:var(--gold)}
+.ftype i{font-style:normal;font-weight:500;color:var(--mute);margin-left:6px;padding-left:8px;border-left:1px solid var(--rule2)}
+.fname{font:700 18px/1.4 var(--serif);color:var(--ink);letter-spacing:-.015em;word-break:normal;overflow-wrap:anywhere}
+.ffeat{font-size:14px;color:var(--mute)}
+.fcard svg{width:100%;height:44px;margin:auto 0 8px;padding-top:8px}
+.fnum{display:flex;gap:0;border-top:1px solid var(--rule);padding-top:10px;font-variant-numeric:tabular-nums}
+.fnum>span{flex:1;display:flex;flex-direction:column;font-weight:700;font-size:16px}
+.fnum em{font-style:normal;font-weight:500;font-size:12.5px;color:var(--mute)}
+.asof{margin-left:auto;color:#b9c6cf;font-size:13px;padding-bottom:18px}
+@media(prefers-reduced-motion:reduce){.fcard{transition:none}}
 .kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:1px;background:var(--rule);border:1px solid var(--rule);border-radius:14px;overflow:hidden;margin-bottom:18px}
 .kpi{background:#fff;padding:16px 18px;min-width:0}
 .kt{font-size:13px;color:var(--mute)}
@@ -95,9 +108,9 @@ td.k{background:#f6f7fb;font-weight:bold;text-align:left;white-space:nowrap}
 .hold s{display:inline-block;height:8px;background:#7b86d6;text-decoration:none}
 .hint{font-size:12px;color:#666;margin-left:auto}
 .hint a{padding:2px 10px;font-size:12px}
-@media(max-width:700px){body{font-size:15px}.brand{padding-bottom:0;width:100%}nav a{padding:10px 10px 9px!important}h2{font-size:23px}h2 .note{font-size:14.5px}h3{font-size:18px}main{padding:14px 12px 32px}table{font-size:13.5px}td,th{padding:8px 6px}main>#v>table th{white-space:normal;width:auto!important;word-break:keep-all}table.cmp td,table.cmp th{word-break:keep-all}.card{padding:16px 14px}.kv{font-size:23px}.kpi{padding:13px 14px}}
+@media(max-width:700px){body{font-size:15px}.brand{padding-bottom:0;width:100%}.asof{display:none}nav a{padding:10px 10px 9px!important}h2{font-size:23px}h2 .note{font-size:14.5px}h3{font-size:18px}main{padding:14px 12px 32px}table{font-size:13.5px}td,th{padding:8px 6px}main>#v>table th{white-space:normal;width:auto!important;word-break:keep-all}table.cmp td,table.cmp th{word-break:keep-all}.card{padding:16px 14px}.kv{font-size:23px}.kpi{padding:13px 14px}}
 </style></head><body><header><div class=hd><div class=brand>주요 펀드현황</div>
-<nav id=top><a data-t="home" data-g="home">추천 라인업</a><a data-t="tdf" data-g="tdf">TDF</a><a data-t="var" data-g="var">변액</a><a data-t="pen3" data-g="pen">연금 계산기</a></nav></div></header><main><div id=sub class=tog></div>
+<nav id=top><a data-t="home" data-g="home">추천 라인업</a><a data-t="tdf" data-g="tdf">TDF</a><a data-t="var" data-g="var">변액</a><a data-t="pen3" data-g="pen">연금 계산기</a></nav><div class=asof>자료 기준일 @@ASOF@@</div></div></header><main><div id=sub class=tog></div>
 <div id="v"></div>
 <p class="note"><b>이 자료는 어디서 왔나요.</b> 펀드 값과 수익률은 한국투자증권(인터넷으로 사는 연금저축용 종류 기준, @@ASOF@@까지), 일부 펀드는 FunETF, 변액 펀드는 메트라이프생명 공시실, 환율·주가·금리 같은 시장 숫자는 따로 모아 둔 경제 지표 자료에서 가져옵니다. 펀드의 비용과 담은 종목은 각 운용 회사 홈페이지도 참고했습니다. 수익률은 그 기간 동안 번 비율(%)을 모두 더한 값이고, 중간에 나눠 준 돈은 다시 넣은 것으로 계산했습니다. 주말과 공휴일에는 값이 없습니다. <b>예전에 잘 벌었다고 앞으로도 잘 번다는 뜻은 아닙니다.</b> 이 화면은 매일 아침 8시 30분쯤과 저녁 7시 30분쯤 스스로 새 자료로 바뀝니다. 마지막으로 바뀐 때: @@UPDATED@@</p>
 </main>
@@ -192,12 +205,15 @@ document.addEventListener("mousemove",e=>{
 // ───────── 화면 ─────────
 function home(){
  let h=`<h2>추천 라인업 <span class=note>지금 추천하는 펀드입니다. 이름을 누르면 그동안의 성과와 자세한 정보가 나옵니다.</span></h2>`;
- h+=guide("home",["<b>이 화면은</b> 추천하는 펀드를 모아 둔 목록입니다. <b>펀드</b>는 여러 사람의 돈을 모아서 전문가가 대신 주식이나 채권에 투자해 주는 상품입니다.","<b>펀드 이름을 누르면</b> 그 펀드가 그동안 얼마나 벌었는지 그래프와 자세한 정보가 나옵니다.","<b>유형</b>은 어디에 투자하는 펀드인지입니다. 예를 들어 \"미국주식\"은 미국 회사 주식에, \"단기채권\"은 금방 돌려받는 채권(돈을 빌려주고 이자를 받는 증서)에 투자합니다.","<b>\"IRP 100% 가능\"</b>은 퇴직연금 계좌(IRP)에 든 돈 전부를 이 펀드 하나로 채워도 된다는 뜻입니다. (주식이 많은 펀드는 법으로 70%까지만 담을 수 있습니다.)","위쪽의 <b>TDF</b>, <b>변액</b> 단추를 누르면 다른 펀드들을 서로 비교하는 화면으로 갑니다."]);
+ h+=guide("home",["<b>이 화면은</b> 추천하는 펀드를 모아 둔 목록입니다. <b>펀드</b>는 여러 사람의 돈을 모아서 전문가가 대신 주식이나 채권에 투자해 주는 상품입니다.","<b>카드를 누르면</b> 그 펀드가 그동안 얼마나 벌었는지 그래프와 자세한 정보가 나옵니다.","<b>유형</b>은 어디에 투자하는 펀드인지입니다. 예를 들어 \"미국주식\"은 미국 회사 주식에, \"단기채권\"은 금방 돌려받는 채권(돈을 빌려주고 이자를 받는 증서)에 투자합니다.","<b>\"IRP 100% 가능\"</b>은 퇴직연금 계좌(IRP)에 든 돈 전부를 이 펀드 하나로 채워도 된다는 뜻입니다. (주식이 많은 펀드는 법으로 70%까지만 담을 수 있습니다.)","위쪽의 <b>TDF</b>, <b>변액</b> 단추를 누르면 다른 펀드들을 서로 비교하는 화면으로 갑니다."]);
+ // 최근 1년(거래일 250개) 흐름을 작은 선으로. 값이 없으면 빈 칸
+ const spark=c=>{const a=(NAV.v[c]||[]).filter(x=>x!=null).slice(-250);if(a.length<20)return "";const mn=Math.min(...a),mx=Math.max(...a),X=i=>(i/(a.length-1)*116+2).toFixed(1),Y=v=>(34-(v-mn)/(mx-mn||1)*30).toFixed(1);
+  return `<svg viewBox="0 0 120 38" preserveAspectRatio="none" aria-hidden="true"><polyline fill="none" stroke="#10283a" stroke-width="1.6" stroke-linejoin="round" vector-effect="non-scaling-stroke" points="${a.map((v,i)=>X(i)+","+Y(v)).join(" ")}"/></svg>`};
  [1,2,3].forEach(g=>{
-  h+=`<table><tr><th style="width:90px">유형<th>펀드 이름 (누르면 자세히)<th>어떤 펀드인가요<th style="width:120px">참고</tr>`+
-  FUNDS.map((f,i)=>f.g==g?`<tr class=f data-i="${i}"><td>${esc(f.type)}<td class=l><span class=tag>${esc(f.name)}</span><td class=l>${esc(f.feat)}<td>${esc(f.etc)}</tr>`:"").join("")+`</table>`;
+  h+=`<div class=fgrid>`+FUNDS.map((f,i)=>{if(f.g!=g)return "";const r=D[f.codes[0]]||[];
+   return `<a class=fcard data-i="${i}" tabindex=0 role=link><span class=ftype>${esc(f.type)}${f.etc?` <i>${esc(f.etc)}</i>`:""}</span><b class=fname>${esc(f.name)}</b><span class=ffeat>${esc(f.feat)}</span>${spark(f.codes[0])}<span class=fnum><span><em>1개월</em>${pct(r[4])}</span><span><em>1년</em>${pct(r[7])}</span><span><em>3년</em>${pct(r[8])}</span></span></a>`}).join("")+`</div>`;
  });
- return h;
+ return h+`<p class=note>카드의 선은 최근 1년 동안 펀드 값이 움직인 모양입니다. 수익률은 그 기간에 번 비율이고, 예전 성과가 앞으로도 이어진다는 뜻은 아닙니다.</p>`;
 }
 let dp=12;
 function detail(i){
@@ -1123,6 +1139,7 @@ function pen3(){
 document.addEventListener("input",e=>{const t=e.target,id=t.id||"",m=id.match(/^p3r_(\d+)_(\w+)$/);if(m){P3.rows[+m[1]][m[2]]=t.value}else if(id.startsWith("p3_")){P3[id.slice(3)]=t.value}else return;saveP3();const b=document.getElementById("p3res");if(b)b.innerHTML=p3Body()});
 document.addEventListener("change",e=>{if(["p3_k1","p3_t2","p3_by","p3_hi","p3_g0","p3_m0"].includes(e.target.id))render()});
 document.addEventListener("click",e=>{const a=e.target.closest("[data-p3add],[data-p3del],[data-p3v],[data-p3x]");if(!a)return;if(a.dataset.p3add)P3.rows.push({n:"",t:"ded",b:"",m:"",e:P3.ret,r:"4",s:P3.ret,y:"20"});else if(a.dataset.p3del!=null)P3.rows.splice(+a.dataset.p3del,1);else if(a.dataset.p3x!=null)P3.tax=a.dataset.p3x;else P3.view=a.dataset.p3v;saveP3();render()});
+document.addEventListener("keydown",e=>{if(e.key=="Enter"&&e.target.matches&&e.target.matches(".fcard"))e.target.click()});
 let LASTTAB="";
 const TABS={home:[["home","추천 라인업"],["view","숫자로 본 전망"]],tdf:[["tdf","은퇴 연도별 비교"],["co","운용사별 비교"],["rep","기간 리포트"]],var:[["var","펀드 비교"],["vinfo","구성·특징"],["vrep","기간 리포트"],["sim","조합 시뮬레이터"]],pen:[["pen3","3층 연금 시뮬레이터"],["pen","국민연금 계산기"],["pinfo","연금 제도 정리"]]};
 // 변액 펀드 구성·특징(유형별, 순자산 큰 순)
