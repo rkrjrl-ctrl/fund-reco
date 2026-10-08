@@ -321,7 +321,7 @@ function fundTable(rows,mode){
  else ord.sort((a,b)=>(es[b[0]]??-1e9)-(es[a[0]]??-1e9));
  const ev=Object.values(es).filter(x=>x!=null),lo=Math.min(0,...ev),hi=Math.max(0,...ev),cur={1:4,3:5,6:6,12:7,36:8}[tp],pn=perName(tp),risk=r=>{const [g,gn]=String(r[9]||"-").split("(");return esc(g)+(gn?`<br><span class=note style="white-space:nowrap">${esc(gn.replace(")",""))}</span>`:"")};
  return `<div class=wrap><table class=ft><tr>`+(mode=="co"?`<th>은퇴 연도`:"")+COLS.map(([n,k])=>`<th class="s${k==cur?" cur":""}" data-s="${k}">${n}${k==sk?(dir>0?" ▲":" ▼"):""}`).join("")+`<th>${cur?pn+" 수익률을 막대로":pn+" 수익률 (그래프와 같은 값)"}</tr>`+
- ord.map(r=>`<tr class="${ME.has(r[0])?"me":""}">`+(mode=="co"?`<td><b>${r[12]}</b>`:"")+`<td class="l fn"><span class=tag>${esc(label(r[0],mode))}</span><br><span class=note>${esc(r[1])}</span><td>${r[2]}<td>${r[3]}%`+[4,5,6,7,8].map(k=>`<td${k==cur?" class=cur":""}>${pct(r[k])}`).join("")+`<td>${r[11].toLocaleString()}<td>${risk(r)}<td class=l>${es[r[0]]==null?"-":dbar(es[r[0]],lo,hi,110)+(cur?"":pct(es[r[0]]))}</tr>`).join("")+`</table></div>`;
+ ord.map(r=>`<tr class="${ME.has(r[0])?"me":""}">`+(mode=="co"?`<td><b>${r[12]}</b>`:"")+`<td class="l fn"><span class=tag>${esc(label(r[0],mode))}</span><br><span class=note>${esc(r[1])}</span><td style="white-space:nowrap">${r[2]}<td>${r[3]}%`+[4,5,6,7,8].map(k=>`<td${k==cur?" class=cur":""}>${pct(r[k])}`).join("")+`<td>${r[11].toLocaleString()}<td>${risk(r)}<td class=l>${es[r[0]]==null?"-":dbar(es[r[0]],lo,hi,110)+(cur?"":pct(es[r[0]]))}</tr>`).join("")+`</table></div>`;
 }
 // 빈티지별: 같은 빈티지의 모든 운용사 상품 비교
 function tdf(){
