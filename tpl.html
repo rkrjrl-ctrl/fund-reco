@@ -34,8 +34,17 @@ nav a.on{color:var(--ink);border-bottom-color:var(--ink);font-weight:700}
 #sub a{border-color:transparent;background:none;border-radius:8px;color:var(--mute);padding:7px 14px;font-size:15px;font-weight:500}
 #sub a:hover{color:var(--ink);border-color:transparent}
 #sub a.on{background:var(--tint);color:var(--ink);font-weight:700}
-table{width:100%;border-collapse:collapse;background:#fff;margin-bottom:24px;font-size:15px;line-height:1.45;font-variant-numeric:tabular-nums;border-top:2px solid var(--ink)}
-th{background:#fff;color:var(--mute);padding:9px 10px;white-space:nowrap;font-size:13px;font-weight:600;border-bottom:1px solid var(--rule2)}
+table{width:100%;border-collapse:collapse;background:#fff;margin-bottom:24px;font-size:15px;line-height:1.45;font-variant-numeric:tabular-nums}
+table:not(:has(th)){border-top:2px solid var(--ink)}
+th{position:sticky;top:0;z-index:3;background:#fff;color:var(--mute);padding:9px 10px;white-space:nowrap;font-size:13px;font-weight:600;box-shadow:inset 0 2px 0 var(--ink),inset 0 -1px 0 var(--rule2)}
+td.n,th.n{text-align:right}
+.cur{background:var(--tint)}td.cur{font-weight:700}
+table.ft td.fn{min-width:260px}
+.wrap.fit{overflow:visible}
+.dbar{display:inline-block;position:relative;height:10px;vertical-align:middle;margin-right:8px}
+.dbar::before{content:"";position:absolute;top:-4px;bottom:-4px;left:var(--z);width:1px;background:var(--rule2)}
+.dbar i{position:absolute;top:0;bottom:0;background:#93a1ad;border-radius:2px}
+tr.me .dbar i{background:var(--ink)}
 th.s{cursor:pointer}
 td{padding:11px 10px;border-bottom:1px solid var(--rule);text-align:center}
 td,th{word-break:normal}
@@ -117,6 +126,7 @@ table.lu td{padding:14px 10px;vertical-align:middle}
 .calc-in .layer:first-child{margin-top:0;padding-top:0;border-top:0}
 .calc-out{min-width:0}
 .calc-out>.verdict:first-child{margin-top:0}
+.calc-out th{white-space:normal;line-height:1.3}
 .calc-out .facts{grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:14px 20px}
 #pchips a.on{background:var(--tint);border-color:var(--ink);color:var(--ink);font-weight:700}
 .pedit{margin-top:16px;padding-top:14px;border-top:1px solid var(--rule)}
@@ -156,6 +166,8 @@ const jp=(t,a,b)=>{const c=[...String(t)].filter(x=>!")] ".includes(x)).pop()||"
 // 결론 띠(DESIGN.md): 무엇을 본 것인지 · 기준일 / 결론 문장 / 보조 숫자 [이름, 값, 풀이] / 보조 문장
 const verdict=(top,say,facts,sub,asof)=>{const F=(facts||[]).filter(Boolean);return `<section class=verdict><div class=verdict-top><span>${top}</span><span>${asof||dstr(DMAX)+" 기준"}</span></div><p class=verdict-say>${say}</p>${sub?`<p class=verdict-sub>${sub}</p>`:""}${F.length?`<dl class=facts>${F.map(([t,v,u])=>`<div><dt>${t}</dt><dd>${v}${u?`<small>${u}</small>`:""}</dd></div>`).join("")}</dl>`:""}</section>`};
 const sg1=v=>(v>0?"+":"")+v.toFixed(1)+"%";
+// 0을 기준선으로 둔 가로 막대: 오른 것은 오른쪽, 내린 것은 왼쪽으로. lo·hi는 그 표에서 가장 작은 값과 큰 값(0 포함). 색은 회색, 추천 줄만 먹색
+const dbar=(v,lo,hi,w)=>{const sp=(hi-lo)||1,z=(0-lo)/sp*100,a=(Math.min(v,0)-lo)/sp*100,b=Math.abs(v)/sp*100;return `<span class=dbar style="width:${w}px;--z:${z.toFixed(1)}%"><i style="left:${a.toFixed(1)}%;width:${Math.max(b,0.8).toFixed(1)}%"></i></span>`};
 // "+4.8% 올랐습니다" / "10.1% 내렸습니다": 내렸다는 말이 붙을 때는 빼기 표시를 뗀다
 const upDn=(v,a,b)=>`<span class=hl>${(v>0?"+":"")+Math.abs(v).toFixed(1)}%</span> ${v>=0?a:b}`;
 const perName=p=>(PERS.find(x=>x[0]==p)||[0,""])[1],perSay=p=>p==999?"처음부터 지금까지":"최근 "+perName(p)+" 동안";
@@ -201,7 +213,7 @@ function draw(id){
  g+=`</g><line class="cx" x1="0" x2="0" y1="${T}" y2="${H-B}" stroke="#333" stroke-dasharray="3 3" style="display:none"/>`;
  CH[id]={S,items,V,W,L,Rm,raw:c.raw,ord:c.ord};box.innerHTML=`<svg viewBox="0 0 ${W} ${H}">${g}</svg>`;
  const lg=document.getElementById("lg-"+id);
- lg.innerHTML=`<div class="lg">`+items.map((it,i)=>{const e=S[i].pts.length?S[i].pts[S[i].pts.length-1][1]:null;return `<span class="${it.off?"off":""}" data-x="${id}|${it.c}"><i style="background:${it.color}"></i>${it.bold?`<span class=pick>${esc(it.label)}</span>`:esc(it.label)}<b>${e==null?"-":c.raw?Math.round(e).toLocaleString()+"만":(e>0?"+":"")+e.toFixed(1)+"%"}</b></span>`}).join("")+`</div>`}
+ lg.innerHTML=`<div class="lg">`+items.map((it,i)=>{const e=S[i].pts.length?S[i].pts[S[i].pts.length-1][1]:null;return `<span class="${it.off?"off":""}" data-x="${id}|${it.c}"><i style="background:${it.color}"></i>${it.bold&&!it.np?`<span class=pick>${esc(it.label)}</span>`:esc(it.label)}<b>${e==null?"-":c.raw?Math.round(e).toLocaleString()+"만":(e>0?"+":"")+e.toFixed(1)+"%"}</b></span>`}).join("")+`</div>`}
 function drawAll(){for(const id in CFG)draw(id)}
 const gx=(e,id)=>{const b=document.getElementById(id),svg=b.querySelector("svg"),r=svg.getBoundingClientRect(),c=CH[id];return {r,vx:(e.clientX-r.left)/r.width*c.W,c}};
 let DRAG=null;
@@ -271,9 +283,9 @@ function fundTable(rows,mode){
  if(sk!=null)ord.sort((a,b)=>{const x=a[sk],y=b[sk];return (x==null)-(y==null)||(x>y?1:x<y?-1:0)*dir});
  else if(mode=="co")ord.sort((a,b)=>a[12]-b[12]||a[13].localeCompare(b[13]));
  else ord.sort((a,b)=>(es[b[0]]??-1e9)-(es[a[0]]??-1e9));
- const mxv=Math.max(1,...Object.values(es).filter(x=>x!=null).map(Math.abs));
- return `<div class=wrap><table><tr>`+(mode=="co"?`<th>은퇴 연도`:"")+COLS.map(([n,k])=>`<th class=s data-s="${k}">${n}${k==sk?(dir>0?" ▲":" ▼"):""}`).join("")+`<th>${PERS.find(x=>x[0]==tp)[1]} 수익률 (그래프와 같은 값)</tr>`+
- ord.map(r=>`<tr class="${ME.has(r[0])?"me":""}">`+(mode=="co"?`<td><b>${r[12]}</b>`:"")+`<td class=l><span class=tag>${esc(label(r[0],mode))}</span><br><span class=note>${esc(r[1])}</span><td>${r[2]}<td>${r[3]}%<td>${pct(r[4])}<td>${pct(r[5])}<td>${pct(r[6])}<td>${pct(r[7])}<td>${pct(r[8])}<td>${r[11].toLocaleString()}<td>${r[9]}<td class=l>${es[r[0]]==null?"-":`<span class=bar style="width:${Math.abs(es[r[0]])/mxv*70}px;background:${es[r[0]]>=0?"#e57373":"#64b5f6"}"></span>${pct(es[r[0]])}`}</tr>`).join("")+`</table></div>`;
+ const ev=Object.values(es).filter(x=>x!=null),lo=Math.min(0,...ev),hi=Math.max(0,...ev),cur={1:4,3:5,6:6,12:7,36:8}[tp],pn=perName(tp),risk=r=>{const [g,gn]=String(r[9]||"-").split("(");return esc(g)+(gn?`<br><span class=note style="white-space:nowrap">${esc(gn.replace(")",""))}</span>`:"")};
+ return `<div class=wrap><table class=ft><tr>`+(mode=="co"?`<th>은퇴 연도`:"")+COLS.map(([n,k])=>`<th class="s${k==cur?" cur":""}" data-s="${k}">${n}${k==sk?(dir>0?" ▲":" ▼"):""}`).join("")+`<th>${cur?pn+" 수익률을 막대로":pn+" 수익률 (그래프와 같은 값)"}</tr>`+
+ ord.map(r=>`<tr class="${ME.has(r[0])?"me":""}">`+(mode=="co"?`<td><b>${r[12]}</b>`:"")+`<td class="l fn"><span class=tag>${esc(label(r[0],mode))}</span><br><span class=note>${esc(r[1])}</span><td>${r[2]}<td>${r[3]}%`+[4,5,6,7,8].map(k=>`<td${k==cur?" class=cur":""}>${pct(r[k])}`).join("")+`<td>${r[11].toLocaleString()}<td>${risk(r)}<td class=l>${es[r[0]]==null?"-":dbar(es[r[0]],lo,hi,110)+(cur?"":pct(es[r[0]]))}</tr>`).join("")+`</table></div>`;
 }
 // 빈티지별: 같은 빈티지의 모든 운용사 상품 비교
 function tdf(){
@@ -532,7 +544,7 @@ function analyst(T,scope,lab,rr,AT,s,e,style,ex,nm,X){
   if(R.length>=2){const am=avgOf(R.map(r=>r.mdd)),bm=R.slice().sort((p,q)=>q.mdd-p.mdd),h=Math.floor(R.length/2),th=avgOf(R.slice(0,h).map(r=>r.mdd)),bh=avgOf(R.slice(-h).map(r=>r.mdd));
    const calm=new Set(bm.slice(0,Math.ceil(R.length/3)).map(r=>r.x)),good=R.filter(r=>r.k<Math.ceil(N/3)&&calm.has(r.x)),mx=Math.max(0.01,...R.map(r=>-r.mdd));
    risk='<p style="margin:0 0 6px">수익률이 같아도 가는 길이 다릅니다. 기간 안에서 가장 높았던 값에서 얼마나 빠졌었는지(가장 많이 빠진 폭)를 보면, 그 펀드를 들고 있을 때 얼마나 마음이 불편했을지 알 수 있습니다.</p>'+
-    tbl(["펀드","수익률","가장 많이 빠진 폭","","가장 나빴던 하루","가격 출렁임(1년 기준)"],R.map(r=>'<tr class="'+(X.isMe(r.x[0])?"me":"")+'"><td class=l><span class=tag>'+nm(r.x)+'</span><td>'+pct(r.x[1])+'<td>'+pct(r.mdd)+'<td class=l><span class=bar style="width:'+(-r.mdd/mx*90)+'px;background:#64b5f6"></span><td>'+(r.wi<0?"-":pct(r.wd)+' <span class=note>('+dstr(NAV.n[r.wi]).slice(5)+')</span>')+'<td>'+r.vol.toFixed(1)+'%</tr>'))+
+    tbl(["펀드","수익률","가장 많이 빠진 폭","","가장 나빴던 하루","가격 출렁임(1년 기준)"],R.map(r=>'<tr class="'+(X.isMe(r.x[0])?"me":"")+'"><td class=l><span class=tag>'+nm(r.x)+'</span><td>'+pct(r.x[1])+'<td>'+pct(r.mdd)+'<td class=l>'+dbar(r.mdd,-mx,0,90)+'<td>'+(r.wi<0?"-":pct(r.wd)+' <span class=note>('+dstr(NAV.n[r.wi]).slice(5)+')</span>')+'<td>'+r.vol.toFixed(1)+'%</tr>'))+
     '<ul style="margin:8px 0 0 18px"><li>펀드들은 기간 중 가장 높았던 값에서 평균 <b>'+Math.abs(am).toFixed(2)+'%</b>까지 빠졌습니다. 가장 덜 빠진 펀드는 '+nm(bm[0].x)+'('+sgn(bm[0].mdd)+'), 가장 많이 빠진 펀드는 '+nm(bm[bm.length-1].x)+'('+sgn(bm[bm.length-1].mdd)+')입니다.</li>'+
     '<li>성적이 앞쪽 절반인 펀드들은 평균 '+Math.abs(th).toFixed(2)+'%, 뒤쪽 절반은 평균 '+Math.abs(bh).toFixed(2)+'% 빠졌습니다. '+(Math.abs(th-bh)<0.3?"흔들린 정도는 비슷했습니다.":th>bh?"잘 번 펀드들이 덜 흔들리기까지 했습니다.":"잘 번 펀드들이 더 많이 흔들렸습니다. 더 큰 출렁임을 견딘 대가로 번 것입니다.")+'</li>'+
     '<li>'+(good.length?'<b>잘 벌면서 덜 빠진 펀드</b>(수익률도 앞쪽 3분의 1, 빠진 폭도 작은 쪽 3분의 1): '+good.map(r=>nm(r.x)).join(", ")+'.':'수익률도 앞쪽이면서 빠진 폭도 작은 펀드는 없었습니다.')+'</li></ul>'+
@@ -542,7 +554,7 @@ function analyst(T,scope,lab,rr,AT,s,e,style,ex,nm,X){
  // ── 2. 왜 갈렸나 (이유 막대) ──
  let p3="";
  if(ok.length&&d0&&main!="small"){const parts=drv.filter(x=>x[1]/tot>=0.06).slice(0,5).map(x=>x[0].startsWith("t:")?[TN[x[0].slice(2)][0],x[1]/tot*100,`${TN[x[0].slice(2)][1]} ${(TFv[x[0].slice(2)]>=0?"+":"")+TFv[x[0].slice(2)].toFixed(2)}%p`]:[DN[x[0]]||PN[x[0]],x[1]/tot*100,`${FNM[x[0]][1]} ${sgn(F[x[0]])}`]);parts.push(["개별 종목 선택·비용 (위 항목으로 설명 안 되는 부분)",resSd/tot*100,""]);parts.sort((a,b)=>b[1]-a[1]);
-  p3=`<div style="margin:6px 0 10px">`+parts.map(x=>`<div style="display:flex;align-items:center;gap:8px;margin:3px 0"><span style="min-width:210px">${x[0]}</span><span style="display:inline-block;height:12px;border-radius:2px;background:#2a78d6;width:${x[1]*2.2}px"></span><b>약 ${x[1].toFixed(0)}%</b><span class=note>${x[2]}</span></div>`).join("")+`</div>`}
+  p3=`<div style="margin:6px 0 10px">`+parts.map(x=>`<div style="display:flex;align-items:center;gap:8px;margin:3px 0"><span style="min-width:210px">${x[0]}</span><span style="display:inline-block;height:12px;border-radius:2px;background:var(--ink2);width:${x[1]*2.2}px"></span><b>약 ${x[1].toFixed(0)}%</b><span class=note>${x[2]}</span></div>`).join("")+`</div>`}
  // ── 종목·업종 선택을 자료로 나눠 보기: 실제 수익률 = 자산 배분 + 쏠림들 + 나머지 ──
  let selT="";
  if(E.length){const cols=TK.filter(k=>E.some(y=>Math.abs(((y[1].t&&y[1].t[k])||0)*TFv[k]/100)>=0.05));
@@ -718,7 +730,7 @@ function view(){
  <p style="margin:0"><b style="color:#10283a">이 방법, 예전에는 잘 맞았나요 (과거 검증)</b><br>${bt?`${date(bt.from)}부터 매달 말에 이 방법을 그대로 썼다고 치고 ${bt.n}번 계산해 봤습니다. ${VHN[vH].replace("앞으로 ","")} 뒤에 보니, 기준대로 둔 것보다 평균 <b>${(bt.avg>=0?"+":"")+bt.avg.toFixed(2)}%p</b> ${bt.avg>=0?"더 벌었고":"덜 벌었고"}, 기준보다 나았던 때는 <b>10번 중 ${(bt.win/10).toFixed(0)}번</b>쯤이었습니다. ${bt.avg>0.05&&bt.win>=55?"도움이 된 편이지만 차이는 작습니다. 100만 원이면 "+Math.round(bt.avg*10000).toLocaleString()+"원쯤 차이입니다.":bt.avg<=0?"기준대로 둔 것보다 낫지 않았습니다. 이 기간은 참고만 하세요.":"뚜렷하게 낫다고 하기 어렵습니다. 참고만 하세요."}`:"계산에 필요한 자료가 모자랍니다."}</p></div>`;
  // 자산별 표
  const mx=Math.max(...VA.map(x=>Math.max(x[2],w[x[0]])));
- h+=`<div class=wrap><table class=cmp><tr><th>무엇을<th>지금 숫자 (근거)<th>판단<th>기준<th>계산 결과<th>기준과의 차이<th>담는 양</tr>`+VA.map(([k,n,b])=>{const g=sig[k],o=g?op(g.s):["자료 없음",""],d=w[k]-b;return `<tr><td class=l><b>${n}</b><td ${wrapTd(330)}>${g?g.t:"-"}<td><span class="${o[1]}">${k=="cash"?"-":o[0]}</span><td>${b}%<td><b>${w[k].toFixed(1)}%</b><td>${Math.abs(d)<0.05?"-":`<span class="${d>0?"pos":"neg"}">${(d>0?"+":"")+d.toFixed(1)}%p</span>`}<td class=l><span class=bar style="width:${w[k]/mx*120}px;background:#2a78d6"></span></tr>`}).join("")+`</table></div>`;
+ h+=`<div class=wrap><table class=cmp><tr><th>무엇을<th>지금 숫자 (근거)<th>판단<th>기준<th>계산 결과<th>기준과의 차이<th>담는 양</tr>`+VA.map(([k,n,b])=>{const g=sig[k],o=g?op(g.s):["자료 없음",""],d=w[k]-b;return `<tr><td class=l><b>${n}</b><td ${wrapTd(330)}>${g?g.t:"-"}<td><span class="${o[1]}">${k=="cash"?"-":o[0]}</span><td>${b}%<td><b>${w[k].toFixed(1)}%</b><td>${Math.abs(d)<0.05?"-":`<span class="${d>0?"pos":"neg"}">${(d>0?"+":"")+d.toFixed(1)}%p</span>`}<td class=l><span class=bar style="width:${w[k]/mx*120}px;background:var(--ink2)"></span></tr>`}).join("")+`</table></div>`;
  h+=`<p class=note><b>계산 방법을 자세히.</b> 주식과 금은 ① 최근 ${VLB[vH]}개월 동안 올랐으면 +1점, 내렸으면 −1점 ② 지금 값이 최근 약 10개월(200거래일) 평균보다 높으면 +1점, 낮으면 −1점을 주고 두 점수를 평균합니다. 6개월·1년을 볼 때는 여섯 나라 주식을 많이 오른 순서로 줄 세운 점수(1등 +1점 ~ 6등 −1점)를 반씩 섞습니다. 채권은 금리가 최근 5년 가운데 높은 편이면 +1점, 낮은 편이면 −1점, 그리고 금리가 내리는 중이면 +1점, 오르는 중이면 −1점입니다(멀리 볼수록 "금리가 높은가"를 더 크게 봅니다). 마지막으로 <b>계산 결과 = 기준 × (1 + 0.4 × 점수)</b>입니다. 점수가 +1이면 기준의 1.4배, −1이면 0.6배가 됩니다. 남는 돈은 현금입니다. 점수가 +0.5 이상이면 "더 담기", −0.5 이하면 "덜 담기", 그 사이는 "그대로"로 표시합니다.</p>`;
  h+=`<h3 style="margin:22px 0 8px">이 계산 방법은 어떻게 정했나요 <span class=note>여러 방법을 예전 자료에 넣어 보고, 2006~2015년과 2016년 이후 두 번 모두 나아진 것만 골랐습니다 (2026년 10월)</span></h3><div class=wrap><table class=cmp><tr><th>넣어 본 방법<th>결과<th>넣었나요</tr>`+[
   ["주식: 최근에 올랐는지 + 10개월 평균보다 높은지 (기본)","더 번 돈의 거의 전부가 여기서 나왔습니다(1년 기준 +0.35%p 가운데 주식 +0.33, 금 +0.12, 채권 −0.06, 현금 −0.04)","넣음"],
@@ -830,8 +842,8 @@ function report(kind){
  const key="x"+NAV.n[iBefore(s-1)]+":"+e;
  const items=()=>emph(rr.map((x,k)=>({c:x[0][0],label:lb(x[0]),bold:isMe(x[0]),off:HID.has(x[0][0])})));
  h+=`<div class=card>${chartBox(T?"cbr":"cbq",{items},key)}<div class=note>기간이 시작되기 바로 전날을 0%로 놓고 그린 그래프입니다. 아래 이름은 이 기간에 많이 번 순서입니다.</div></div>`;
- const mxv=Math.max(1,...rr.map(x=>Math.abs(x[1])));
- h+=`<div class=wrap><table class=cmp><tr><th>순위<th>펀드<th>${T?"운용 회사":"유형"}<th>${lab} 수익률<th>지난번 순위 (▲오름 ▼내림)<th>순위가 이렇게 된 이유</tr>`+rr.map((x,k)=>{const r=x[0],ti=TINFO[r[0]],p=prk[r[0]],d=p?p-(k+1):null;return `<tr class="${isMe(r)?"me":""}"><td>${k+1}<td class=l><span class=tag>${esc(lb(r))}</span><td>${r[2]}<td class=l><span class=bar style="width:${Math.abs(x[1])/mxv*70}px;background:${x[1]>=0?"#e57373":"#64b5f6"}"></span>${pct(x[1])}<td>${p?p+"위 "+(d>0?`<span class=pos>▲${d}</span>`:d<0?`<span class=neg>▼${-d}</span>`:"–"):"-"}<td ${wrapTd(420)}>${why(x)||"-"}</tr>`}).join("")+`</table></div>`;
+ const rlo=Math.min(0,...rr.map(x=>x[1])),rhi=Math.max(0,...rr.map(x=>x[1]));
+ h+=`<div class=wrap><table class=cmp><tr><th>순위<th>펀드<th>${T?"운용 회사":"유형"}<th>${lab} 수익률<th>지난번 순위 (▲오름 ▼내림)<th>순위가 이렇게 된 이유</tr>`+rr.map((x,k)=>{const r=x[0],ti=TINFO[r[0]],p=prk[r[0]],d=p?p-(k+1):null;return `<tr class="${isMe(r)?"me":""}"><td>${k+1}<td class=l><span class=tag>${esc(lb(r))}</span><td>${r[2]}<td class=l>${dbar(x[1],rlo,rhi,90)}${pct(x[1])}<td>${p?p+"위 "+(d>0?`<span class=pos>▲${d}</span>`:d<0?`<span class=neg>▼${-d}</span>`:"–"):"-"}<td ${wrapTd(420)}>${why(x)||"-"}</tr>`}).join("")+`</table></div>`;
  // ── 최근 기간 흐름 ──
  const PP=P.slice(pi,pi+6).reverse(),RK=PP.map(p=>{const m={};rank(p[2],p[3]).forEach((x,k)=>m[x[0][0]]=[x[1],k+1]);return m});
  h+=`<h3 style="margin:22px 0 8px">최근 ${PP.length}개 ${UN[rUnit][0]} 흐름 <span class=note>기간마다 번 비율과, 괄호 안은 그때의 순위</span></h3><div class=wrap><table class=cmp><tr><th>펀드`+PP.map(p=>`<th>${p[1].replace(/^\d{2}/,"'")}`).join("")+`</tr>`+rr.map(x=>`<tr class="${isMe(x[0])?"me":""}"><td class=l><span class=tag>${esc(lb(x[0]))}</span>`+RK.map(m=>{const v=m[x[0][0]];return `<td>${v?pct(v[0])+` <span class=note>(${v[1]})</span>`:"-"}`}).join("")+`</tr>`).join("")+`</table></div>`;
@@ -887,11 +899,11 @@ function variable(){
   ...VPERS.slice(0,5).map(([m,t])=>["지금 기준 "+t,r=>retP(r[0],m)]),["처음부터",r=>endRet(r[0],999)]];
  const ord=rows.slice();
  if(vsk!=null){const f=C[vsk][1];ord.sort((a,b)=>{const x=f(a),y=f(b);return (x==null)-(y==null)||(x>y?1:x<y?-1:0)*vdir})}else ord.sort((a,b)=>(rs[b[0]]?rs[b[0]].tot:-1e9)-(rs[a[0]]?rs[a[0]].tot:-1e9));
- const mxv=Math.max(1,...Object.values(rs).filter(x=>x).map(x=>Math.abs(x.tot)));
+ const tv=Object.values(rs).filter(x=>x).map(x=>x.tot),vlo=Math.min(0,...tv),vhi=Math.max(0,...tv);
  h+=`<div class=wrap><table class=cmp><tr>`+C.map(([n],k)=>`<th class=s data-vs2="${k}">${n}${k==vsk?(vdir>0?" ▲":" ▼"):""}`).join("")+`<th>고른 기간 수익률 (막대)</tr>`+
  ord.map(r=>{const c=r[0],s=rs[c];return `<tr><td class=l><span class=tag>${esc(r[1])}</span>`+
   (s?`<td>${pct(s.tot)}<td>${s.ann==null?"-":pct(s.ann)}<td>${s.vol.toFixed(1)}%<td>${pct(s.mdd)}`:`<td>-<td>-<td>-<td>-`)+
-  VPERS.slice(0,5).map(([m])=>`<td>${pct(retP(c,m))}`).join("")+`<td>${pct(endRet(c,999))}<td class=l>${s?`<span class=bar style="width:${Math.abs(s.tot)/mxv*70}px;background:${s.tot>=0?"#e57373":"#64b5f6"}"></span>${s.late?`<span class=note>(${dstr(s.late)} 설정)</span>`:""}`:"-"}</tr>`}).join("")+`</table></div>`;
+  VPERS.slice(0,5).map(([m])=>`<td>${pct(retP(c,m))}`).join("")+`<td>${pct(endRet(c,999))}<td class=l>${s?dbar(s.tot,vlo,vhi,110)+(s.late?`<span class=note>(${dstr(s.late)} 설정)</span>`:""):"-"}</tr>`}).join("")+`</table></div>`;
  return h+`<p class=note>모두 ${rows.length}개. 제목 칸을 누르면 그 순서대로 줄을 다시 세웁니다. "지금 기준" 칸들은 고른 기간과 상관없이 오늘(${dstr(DMAX)})부터 거꾸로 센 수익률입니다. 이름이 같아도 번호(1호·2호·3호)가 다르면 다른 펀드입니다. 여기 값은 펀드 자체의 값이라, 보험료에서 떼는 사업비·위험보험료·세금은 빠져 있지 않습니다. 각 펀드가 무엇에 투자하는지는 "구성·특징" 화면에 있습니다.</p>`;
 }
 // ───────── 조합 시뮬레이터(일시금 + 적립식, 조합 여러 개) ─────────
@@ -953,7 +965,7 @@ function simBody(){
  const dca=R.mon>0,key="x"+NAV.n[R.s]+":"+DMAX;
  const rx=p=>R.res.find(x=>x.p===p),per=x=>x&&x.short?` (${NAV.d[x.s].slice(0,4)}.${NAV.d[x.s].slice(4,6)}~)`:"";
  const cit=R.comps.map((x,k)=>({c:"SIMF:"+x.c,label:x.part?`└ ${DV[x.c][1]} ${x.w.toFixed(0)}% 몫`:`└ ${DV[x.c][1]} (하나만 샀다면)`,color:CAT[6-k%7],dash:true,off:HID.has("SIMF:"+x.c)}));
- const items=()=>R.res.flatMap(x=>[{c:"SIM"+x.p.id,label:x.p.name+per(x),color:pcol(x.p),bold:true,off:!x.p.on},...(x===R.sx?cit:[])]);
+ const items=()=>R.res.flatMap(x=>[{c:"SIM"+x.p.id,label:x.p.name+per(x),color:pcol(x.p),bold:true,np:1,off:!x.p.on},...(x===R.sx?cit:[])]);
  const spanTxt=sSpan=="0"?"가능한 가장 이른 날부터":sSpan=="d"?"직접 정한 시작일부터":"최근 "+(+sSpan/12)+"년";
  // 결론 띠(시뮬레이터): 켜 둔 조합을 넣은 돈 대비 수익률로 줄 세운다
  const ST=R.on.map(x=>({x,t:dcaStats(x.r,R.e,x.s)})).filter(y=>y.t).sort((a,b)=>b.t.ret-a.t.ret),t0=ST[0];
@@ -961,7 +973,7 @@ function simBody(){
  const sh=R.on.filter(x=>x.short);
  if(sh.length)h+=`<p class=note style="color:#c62828">※ ${sh.map(x=>`${esc(x.p.name)}: ${esc(DV[x.lim][1])}(${date(NAV.d[idx0(x.lim)])} 시작) 때문에 ${date(NAV.d[x.s])}부터 계산`).join(" / ")}. 다른 조합보다 짧은 기간이라 수익률을 그대로 비교하기는 어렵습니다. 모두 같은 기간으로 보려면 기간을 ${date(NAV.d[Math.max(...R.on.map(x=>x.s))])} 이후로 줄여 보세요.</p>`;
  h+=`<div class=card>${chartBox("cbs",{items,ord:1},key)}<div class=note>넣은 돈에 비해 몇 % 벌었는지(또는 잃었는지)를 그린 그래프입니다. 아래 이름, 위의 ●, 아래 표의 줄을 누르면 조합을 숨기거나 보이게 할 수 있습니다.${R.comps.length?(sComp=="a"?" 점선은 고른 조합에 들어 있는 펀드 하나에만 돈을 전부 넣었을 때입니다.":" 점선은 고른 조합 안에서 각 펀드가 자기 비중만큼 벌어 준 몫입니다. 점선을 모두 더하면 조합(굵은 선)의 수익률이 됩니다.")+" 표의 └ 줄을 눌러도 숨기거나 보이게 할 수 있습니다.":""} 마우스 휠로 크게/작게, 누른 채 끌면 옆으로 움직입니다.</div></div>`;
- const tbl=simTable(R);if(dca)h+=tbl+`<div class=card>${chartBox("cbw",{items:()=>[...R.res.map(x=>({c:"SIMV"+x.p.id,label:x.p.name+" 평가금액"+per(x),color:pcol(x.p),bold:true,off:!x.p.on})),{c:"SIMC",label:"누적 납입원금",color:"#555",dash:true}],raw:true,ord:1},key)}<div class=note>실제 돈으로 얼마가 됐는지(만 원)를 그린 그래프입니다. 점선은 그때까지 넣은 돈입니다. 실선이 점선보다 위에 있으면 번 것, 아래에 있으면 잃은 것입니다.</div></div>`;
+ const tbl=simTable(R);if(dca)h+=tbl+`<div class=card>${chartBox("cbw",{items:()=>[...R.res.map(x=>({c:"SIMV"+x.p.id,label:x.p.name+" 평가금액"+per(x),color:pcol(x.p),bold:true,np:1,off:!x.p.on})),{c:"SIMC",label:"누적 납입원금",color:"#555",dash:true}],raw:true,ord:1},key)}<div class=note>실제 돈으로 얼마가 됐는지(만 원)를 그린 그래프입니다. 점선은 그때까지 넣은 돈입니다. 실선이 점선보다 위에 있으면 번 것, 아래에 있으면 잃은 것입니다.</div></div>`;
  return h+(dca?"":tbl)+`<p class=note>비율 다시 맞추기: ${REB[sReb]}. "1년으로 바꾼 수익률"은 돈을 넣은 날짜가 저마다 다른 것까지 따져서 계산했고, 기간이 1년이 안 되면 표시하지 않습니다. "가격 출렁임"은 돈을 새로 넣어서 늘어난 것은 빼고, 펀드 값이 오르내린 것만 봤습니다. 펀드 자체의 값으로 계산해서 보험료에서 떼는 사업비·위험보험료·세금은 빠져 있지 않습니다. 예전 성적이 앞으로의 성적을 약속하지는 않습니다.</p>`;
 }
 function simTable(R){
@@ -980,7 +992,7 @@ function simEdit(){
   `<div class=tog style="align-items:center"><span id=simsum></span><a data-peq="1">똑같이 나누기</a><a data-pnorm="1">합계 100%로 맞추기</a><a data-pdel="1">이 조합 삭제</a></div>`+
   fields(`<div class=tog><b>그래프에 함께 보기</b><a data-pcomp="w" class="${sComp=="w"?"on":""}">구성 펀드별 몫 보기 (다 더하면 조합)</a><a data-pcomp="a" class="${sComp=="a"?"on":""}">한 펀드만 100% 샀다면?</a></div>`)+`</div>`}
 function simRefresh(){$("#pchips").innerHTML=simChips();$("#pedit").innerHTML=simEdit();simSum();simUpdate()}
-function simUpdate(){const b=$("#simres");if(!b)return;["cbs","cbw"].forEach(k=>{delete CFG[k];delete VIEW[k]});b.innerHTML=simBody();["cbs","cbw"].forEach(k=>{if(CFG[k])draw(k)});simSum()}
+function simUpdate(){const b=$("#simres");if(!b)return;["cbs","cbw"].forEach(k=>{delete CFG[k];delete VIEW[k]});b.innerHTML=simBody();["cbs","cbw"].forEach(k=>{if(CFG[k])draw(k)});simSum();tidy(b)}
 function sim(){
  return `<h2>조합 시뮬레이터 <span class=note>변액 펀드를 여러 개 섞어 담았다면 예전에 어땠을지 계산해 보는 곳</span></h2>
  ${guide("sim",["<b>이 화면은</b> \"펀드를 이렇게 섞어 담았다면 그동안 얼마가 됐을까?\"를 계산해 봅니다. 한 펀드에 다 넣는 것보다 나눠 담으면 어떻게 달라지는지 볼 수 있습니다.","<b>조합</b>은 펀드를 몇 %씩 섞을지 정한 묶음입니다. 예: 채권형 30% + 미국주식형 70%. 조합은 6개까지 만들어서 서로 비교할 수 있습니다.","<b>조합 만들기:</b> ① \"+ 조합 추가\"를 누르고 ② \"+ 펀드 추가…\"에서 펀드를 고른 뒤 ③ 각 펀드 옆 칸에 몇 %를 넣을지 적습니다. 모두 더해서 100%가 되어야 합니다(\"합계 100%로 맞추기\"를 누르면 알아서 맞춰 줍니다).","<b>돈 넣는 방법:</b> <b>처음에 한 번에 넣는 돈</b>과 <b>매달 넣는 돈</b>을 적습니다. 매달 넣는 돈을 0으로 두면 처음 한 번만 넣은 것으로 계산합니다. \"넣는 횟수\"를 비워 두면 끝까지 매달 넣습니다.","<b>비율 다시 맞추기(리밸런싱):</b> 시간이 지나면 많이 오른 펀드의 몫이 커져서 처음 정한 비율이 흐트러집니다. 이것을 정해진 때마다 처음 비율로 되돌리는 것입니다. \"안 함\"은 처음 넣은 대로 그냥 두는 것입니다.","<b>이름 옆 ●</b>을 누르면 그 조합의 그래프를 숨기거나 보이게 할 수 있습니다. 아래 표의 줄을 눌러도 됩니다.","<b>\"구성 펀드별 몫 보기\":</b> 조합 안에서 각 펀드가 자기 비중만큼 벌어 준 몫을 점선으로 보여 줍니다. 점선을 모두 더하면 조합의 수익률이 됩니다. 어느 펀드가 조합 수익에 얼마나 보탰는지 볼 수 있습니다. <b>\"한 펀드만 100% 샀다면?\"</b>은 그 펀드 하나에 돈을 전부 넣었을 때와 비교합니다.","<b>첫 번째 그래프</b>는 넣은 돈에 비해 몇 % 벌었는지, <b>두 번째 그래프</b>(매달 넣을 때만 나옴)는 실제 돈으로 얼마가 됐는지(만 원)와 그동안 넣은 돈(점선)입니다.","<b>표의 낱말:</b> <b>넣은 돈</b>은 지금까지 넣은 돈의 합, <b>지금 값</b>은 그 돈이 지금 얼마가 됐는지, <b>1년으로 바꾼 수익률</b>은 \"1년에 평균 몇 %씩 번 셈인지\", <b>가격 출렁임</b>은 값이 얼마나 크게 오르내렸는지, <b>가장 나빴을 때</b>는 넣은 돈보다 가장 많이 줄었던 때의 비율입니다.","<b>주의:</b> 펀드 자체의 값으로 계산해서, 보험료에서 떼는 사업비 등은 빠져 있지 않습니다. 예전 성적이 앞으로도 같다는 뜻은 아닙니다."])}
@@ -988,7 +1000,7 @@ function sim(){
  <div class=tog><b>처음에 한 번에 넣는 돈</b><input type=number id=sinit min=0 step=100 value="${sInit}" style="width:90px;padding:4px;text-align:right">만원<span style="width:8px"></span><b>매달 넣는 돈</b><input type=number id=smon min=0 step=10 value="${sMon}" placeholder="0" style="width:80px;padding:4px;text-align:right">만원<span style="width:8px"></span><b>넣는 횟수</b><input type=number id=smths min=0 step=12 value="${sMths}" placeholder="끝까지" style="width:80px;padding:4px;text-align:right">개월<span class=note>(매달 넣는 돈이 0이면 처음 한 번만 넣은 것으로 계산)</span></div>`)}
  <div id=pchips>${simChips()}</div><div id=pedit>${simEdit()}</div></div><div id=simres class=calc-out>${simBody()}</div></div>`;
 }
-document.addEventListener("input",e=>{const t=e.target,id=t.id;if(id&&id.startsWith("pn_")){PS[id.slice(3)]=t.type=="checkbox"?t.checked:t.value;savePen();$("#penres").innerHTML=penBody();return}
+document.addEventListener("input",e=>{const t=e.target,id=t.id;if(id&&id.startsWith("pn_")){PS[id.slice(3)]=t.type=="checkbox"?t.checked:t.value;savePen();const b=$("#penres");b.innerHTML=penBody();tidy(b);return}
  if(t.dataset&&t.dataset.w){const v=parseFloat(t.value);curP().w[t.dataset.w]=v>0?v:0;saveSim();simUpdate()}
  else if(id=="pname"){curP().name=t.value||"조합";saveSim();$("#pchips").innerHTML=simChips();simUpdate()}
  else if(id=="sinit"){sInit=t.value;saveSim();simUpdate()}else if(id=="smon"){sMon=t.value;saveSim();simUpdate()}else if(id=="smths"){sMths=t.value;saveSim();simUpdate()}});
@@ -1195,7 +1207,7 @@ function pen3(){
  ${hd("3층","개인연금")}${S.rows.map((w,i)=>`<div class=tog>${inp(`p3r_${i}_n`,w.n,110,'placeholder="이름"')}<select id="p3r_${i}_t" style="padding:5px"><option value="ded" ${w.t!="non"?"selected":""}>연금저축·IRP (세액공제 받음)</option><option value="non" ${w.t=="non"?"selected":""}>연금보험·변액연금 (세액공제 없음)</option></select><b>지금 쌓인 돈</b>${inp(`p3r_${i}_b`,w.b,90,"min=0 step=100")}만원<span style="width:6px"></span><b>매달 넣는 돈</b>${inp(`p3r_${i}_m`,w.m,70,"min=0 step=5")}만원<span style="width:6px"></span>${inp(`p3r_${i}_e`,w.e,50,"min=20 max=80")}세 전까지<span style="width:6px"></span><b>수익률</b>${inp(`p3r_${i}_r`,w.r,50,"min=0 max=15 step=0.5")}%<span style="width:6px"></span><b>받기 시작</b>${inp(`p3r_${i}_s`,w.s,50,"min=55 max=80")}세부터<span style="width:4px"></span>${inp(`p3r_${i}_y`,w.y,45,"min=1 max=50")}년 동안${S.rows.length>1?`<a data-p3del="${i}" title="이 줄 지우기">×</a>`:""}</div>`).join("")}<div class=tog>${S.rows.length<6?`<a data-p3add="1">+ 개인연금 하나 더</a>`:""}</div><div class=tog><b>금액 보는 방법</b><a data-p3v="r" class="${S.view!="n"?"on":""}">지금 돈 가치</a><a data-p3v="n" class="${S.view=="n"?"on":""}">그때 금액</a><span style="width:14px"></span><b>세금</b><a data-p3x="1" class="${S.tax!="0"?"on":""}">뗀 뒤</a><a data-p3x="0" class="${S.tax=="0"?"on":""}">떼기 전</a></div>
  <div class=tog><b>건강보험료</b><select id="p3_hi" style="padding:5px"><option value="none" ${S.hi=="none"?"selected":""}>계산하지 않음</option><option value="local" ${S.hi=="local"?"selected":""}>지역가입자로 냄</option><option value="dep" ${S.hi=="dep"?"selected":""}>가족 직장보험에 얹힘 (피부양자, 될 수 있을 때만)</option></select>${S.hi!="none"?`<b>재산세 과세표준 (집·땅 등)</b>${inp("p3_hp",S.hp,90,'min=0 step=1000 placeholder="0"')}만원 <span class=note>(주택은 공시가격의 60%쯤)</span><span style="width:8px"></span><b>연금 말고 다른 소득 (1년)</b>${inp("p3_ho",S.ho,80,'min=0 step=100 placeholder="0"')}만원`:""}</div></div>
  <div id=p3res class=calc-out>${p3Body()}</div></div>`)}
-document.addEventListener("input",e=>{const t=e.target,id=t.id||"",m=id.match(/^p3r_(\d+)_(\w+)$/);if(m){P3.rows[+m[1]][m[2]]=t.value}else if(id.startsWith("p3_")){P3[id.slice(3)]=t.value}else return;saveP3();const b=document.getElementById("p3res");if(b)b.innerHTML=p3Body()});
+document.addEventListener("input",e=>{const t=e.target,id=t.id||"",m=id.match(/^p3r_(\d+)_(\w+)$/);if(m){P3.rows[+m[1]][m[2]]=t.value}else if(id.startsWith("p3_")){P3[id.slice(3)]=t.value}else return;saveP3();const b=document.getElementById("p3res");if(b){b.innerHTML=p3Body();tidy(b)}});
 document.addEventListener("change",e=>{if(["p3_k1","p3_t2","p3_by","p3_hi","p3_g0","p3_m0"].includes(e.target.id))render()});
 document.addEventListener("click",e=>{const a=e.target.closest("[data-p3add],[data-p3del],[data-p3v],[data-p3x]");if(!a)return;if(a.dataset.p3add)P3.rows.push({n:"",t:"ded",b:"",m:"",e:P3.ret,r:"4",s:P3.ret,y:"20"});else if(a.dataset.p3del!=null)P3.rows.splice(+a.dataset.p3del,1);else if(a.dataset.p3x!=null)P3.tax=a.dataset.p3x;else P3.view=a.dataset.p3v;saveP3();render()});
 document.addEventListener("keydown",e=>{if(e.key=="Enter"&&e.target.matches&&e.target.matches("tr.f"))e.target.click()});
@@ -1262,6 +1274,14 @@ function pinfo(){
   "<b>퇴직연금·개인연금에서 받는 돈.</b> 이 사이트의 계산기는 여기에 건강보험료를 매기지 않는 것으로 계산합니다. 지금 공단이 실제로 보험료를 매기는 연금은 나라 연금뿐인 것으로 알고 있지만, 이 부분은 법 원문으로 확인하지 못했습니다. 법 조문에는 연금소득 전체가 대상으로 적혀 있어 앞으로 바뀔 수 있습니다.",
   "세대원 합산, 퇴직 뒤 3년까지 직장 보험료로 내는 제도(임의계속가입), 경감 제도는 여기서 다루지 않았습니다."])+
  `<p class=note><b>읽을 때 알아 두세요.</b> ① 숫자는 ${NOWY}년 기준입니다. 보험료율, 소득 상한·하한, 평균 소득, 건강보험 점수 값은 해마다 바뀝니다. ② 제도의 큰 줄기를 정리한 것이라, 개인별 예외(특례, 경과 규정, 휴직·합산 기간 등)는 빠져 있습니다. ③ 실제 금액은 국민연금공단 "내 연금 알아보기", 공무원연금공단·사학연금공단·국군재정관리단의 예상 연금액 조회, 금융감독원 "통합연금포털"에서 확인하세요. ④ 숫자 확인일 ${PEN.checked}.</p>`}
+// 표 다듬기(그린 뒤에 한 번): 숫자만 든 칸은 오른쪽으로 맞추고, 표가 틀 안에 다 들어가면 틀의 가로 스크롤을 풀어 머리줄이 화면 위에 붙게 한다
+const NUMRE=/^[+\-−–]?[\d,]+(\.\d+)?\s?(%p|%|억 원|억|만 원|만원|만|원|개월|개|년|배|점|위|세|일)?$/;
+function tidy(root){if(!root)return;root.querySelectorAll("table").forEach(t=>{if(t.classList.contains("lu"))return;const R=[...t.rows].filter(r=>![...r.cells].some(d=>d.colSpan>1)),nc=Math.max(0,...R.map(r=>r.cells.length));
+ for(let c=0;c<nc;c++){let num=0,all=0;for(const r of R){const d=r.cells[c];if(!d||d.tagName=="TH")continue;const x=d.textContent.trim();if(!x||x=="-"||x=="–")continue;all++;if(NUMRE.test(x))num++}
+  if(all&&num/all>=0.7)for(const r of R){const d=r.cells[c];if(d&&!d.classList.contains("l"))d.classList.add("n")}}
+ const w=t.closest(".wrap");if(w)w.classList.toggle("fit",w.scrollWidth<=w.clientWidth+1)})}
+let TZ;addEventListener("resize",()=>{clearTimeout(TZ);TZ=setTimeout(()=>tidy($("#v")),150)});
+if(document.fonts&&document.fonts.ready)document.fonts.ready.then(()=>tidy($("#v")));
 function render(){
  const [t,i]=(location.hash.slice(1)||"home").split("/");
  if(t!=LASTTAB){sk=null;dir=-1;vsk=null;LASTTAB=t}
@@ -1270,7 +1290,7 @@ function render(){
  document.querySelectorAll("nav a").forEach(a=>a.classList.toggle("on",a.dataset.g==grp));
  $("#sub").innerHTML=TABS[grp].length>1?TABS[grp].map(([k,n])=>`<a data-t="${k}" class="${k==t?"on":""}">${n}</a>`).join(""):"";
  $("#v").innerHTML=t=="detail"?detail(i):t=="tdf"?tdf():t=="co"?co():t=="rep"?report("tdf"):t=="vrep"?report("var"):t=="vinfo"?vinfo():t=="view"?view():t=="var"?variable():t=="sim"?sim():t=="pen"?pen():t=="pen3"?pen3():t=="pinfo"?pinfo():home();
- drawAll();
+ drawAll();tidy($("#v"));
 }
 document.addEventListener("click",e=>{
  const g=k=>e.target.closest("["+k+"]");
