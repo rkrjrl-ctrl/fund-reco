@@ -443,7 +443,7 @@ function analyst(T,scope,lab,rr,AT,s,e,style,ex,nm,X){
  sum.push(`1위는 ${nm(rr[0])}(${sgn(rr[0][1])}), 꼴찌는 ${nm(rr[N-1])}(${sgn(rr[N-1][1])})입니다.`);
  const tbl=(hd,rows)=>`<div class=wrap><table class=cmp><tr>${hd.map(x=>`<th>${x}`).join("")}</tr>${rows.join("")}</table></div>`;
  const PE=c=>pexpo(c,s,e),E=rr.map(x=>[x,PE(x[0][0])]).filter(y=>y[1]);
- const wOf=(o,k)=>k=="fx"?o.fx:k=="safe"?o.x.krb+o.x.glb+o.x.cash:k=="oeq"?o.x.in+o.x.oth+o.x.gl:k=="bond"?o.x.krb+o.x.glb:o.x[k];
+ const wOf=(o,k)=>k=="fx"?o.fx:k=="safe"?o.x.krb+o.x.glb+o.x.cash:k=="oeq"?o.x.in+o.x.oth+o.x.gl:k=="bond"?o.x.krb+o.x.glb:o.x[k]||0;
  // ── 왜 올랐나/내렸나: 평균적인 펀드의 수익률을 자산별로 나눠 보기(담은 비율 × 그 자산의 등락) ──
  const AK=["kr","us","eu","jp","cn","cna","in","em","krb","glb","gold","fx"].filter(k=>F[k]!=null),TK=Object.keys(TF).filter(k=>TFv[k]!=null&&E.some(y=>y[1].t&&y[1].t[k]));
  const AN={kr:"한국 주식",us:"미국 주식",eu:"유럽 주식",jp:"일본 주식",cn:"중국 주식(홍콩)",cna:"중국 본토 주식",in:"인도 주식",em:"신흥국 주식",krb:"국내 채권",glb:"해외 채권",gold:"금",fx:"환율"};for(const k in TN)AN["t:"+k]=TN[k][0];
@@ -451,7 +451,7 @@ function analyst(T,scope,lab,rr,AT,s,e,style,ex,nm,X){
  const allocOf=o=>AK.reduce((a,k)=>a+wOf(o,k)*F[k]/100,0);
  const won=v=>(v>=0?"+":"−")+Math.abs(Math.round(v*10000)).toLocaleString()+"원";
  let whyAbs="",absHead="";const NV={};
- const avgO=E.length?{x:Object.fromEntries(Object.keys(E[0][1].x).map(k=>[k,avgOf(E.map(y=>y[1].x[k]||0))])),fx:avgOf(E.map(y=>y[1].fx)),t:Object.fromEntries(TK.map(k=>[k,avgOf(E.map(y=>(y[1].t&&y[1].t[k])||0))]))}:null;
+ const avgO=E.length?{x:Object.fromEntries([...new Set(E.flatMap(y=>Object.keys(y[1].x)))].map(k=>[k,avgOf(E.map(y=>y[1].x[k]||0))])),fx:avgOf(E.map(y=>y[1].fx)),t:Object.fromEntries(TK.map(k=>[k,avgOf(E.map(y=>(y[1].t&&y[1].t[k])||0))]))}:null;
  if(avgO&&AK.length){
   const pa=partsOf(avgO).sort((a,b)=>Math.abs(b[1])-Math.abs(a[1])),big=pa.filter(z=>Math.abs(z[1])>=0.2).slice(0,5),rest=av-big.reduce((a,z)=>a+z[1],0);
   const m=pa.find(z=>!z[0].startsWith("t:")&&(z[1]>=0)==(av>=0)&&Math.abs(z[1])>=0.2)||pa.find(z=>!z[0].startsWith("t:"))||pa[0];
@@ -1249,7 +1249,7 @@ document.addEventListener("click",e=>{
  else if(dpp){dp=+dpp.dataset.dp;render()}
  else if(fx){FIXB=!FIXB;try{localStorage.setItem("fixB",FIXB?"1":"0")}catch(e){}render()}
  else if(zr){VIEW[zr.dataset.zr]=pv(zr.dataset.zr,VPER[zr.dataset.zr]);draw(zr.dataset.zr)}
- else if(x&&/^SIMV?d+$/.test(x.dataset.x.split("|")[1])){const p=PORTS.find(p=>p.id==+x.dataset.x.split("|")[1].replace("SIMV","").replace("SIM",""));if(p){p.on=!p.on;saveSim();$("#pchips").innerHTML=simChips();simUpdate()}}
+ else if(x&&/^SIMV?\d+$/.test(x.dataset.x.split("|")[1])){const p=PORTS.find(p=>p.id==+x.dataset.x.split("|")[1].replace("SIMV","").replace("SIM",""));if(p){p.on=!p.on;saveSim();$("#pchips").innerHTML=simChips();simUpdate()}}
  else if(x){const c=x.dataset.x.split("|")[1];HID.has(c)?HID.delete(c):HID.add(c);draw(x.dataset.x.split("|")[0])}
  else if(cs){coSel=cs.dataset.co;famSel="전체";VSEL.clear();HID.clear();render()}
  else if(fm){famSel=fm.dataset.fam;VSEL.clear();render()}
