@@ -1,6 +1,6 @@
 ﻿# 펀드추천 대시보드
 
-페이지: https://rkrjrl-ctrl.github.io/fund-reco/ (매일 08:30·19:30 KST 자동 갱신)
+페이지: https://rkrjrl-ctrl.github.io/fund-reco/ (하루 두 번 자동 갱신. 예약은 08:30·19:30 KST지만 GitHub 사정으로 몇 시간 늦게 돌기도 함)
 
 ## 라인업 바꾸는 법
 GitHub에서 `lineup.json` → 연필(Edit) 아이콘 → 수정 → Commit. 저장하면 약 6분 뒤 페이지에 반영됩니다.
