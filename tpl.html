@@ -1242,9 +1242,9 @@ const hiScore=man=>{const v=man-10000;if(v<=0)return 0;return HI_T.find(x=>v<=x[
 function hiCalc(pubY,other,prop,mode){const tot=pubY+other,dep=tot<=HI.depInc&&(prop<=54000||(prop<=90000&&tot<=1e7));if(mode=="dep"&&dep)return {m:0,dep:true};
  // 소득월액이 28만 원 이하면 소득에 대한 보험료는 하한액으로 본다(시행규칙 제44조제3항). 여기에 재산에 대한 보험료를 더한다
  const sm=(pubY*.5+other)/12,base=Math.min(HI.hi,(sm<=HI.smLo?HI.lo:sm*HI.rate)+hiScore(prop)*HI.pt);return {m:base*(1+HI.ltc),dep,base}}
-let P3={oe:"",m0:"2014",g0:"2016",gb:"",go:"",hi:"none",hp:"",ho:"",by:"1980",ret:"60",life:"90",infl:"2",view:"n",ni:"0",need:"",k1:"nps",m1:"",a1:"65",my:"",mb:"",t2:"dc",b2:"",c2:"",r2:"4",s2:"60",n2:"20",h2:"",w2:"",tax:"1",p1:"100",rows:[{n:"연금저축",t:"ded",b:"",m:"",e:"60",r:"4",s:"60",y:"20"}]};
+let P3={oe:"",m0:"2014",g0:"2016",gb:"",go:"",hi:"none",hp:"",ho:"",by:"1980",ret:"60",life:"90",infl:"2",view:"r",ni:"0",need:"",k1:"nps",m1:"",a1:"65",my:"",mb:"",t2:"dc",b2:"",c2:"",r2:"4",s2:"60",n2:"20",h2:"",w2:"",tax:"1",p1:"100",rows:[{n:"연금저축",t:"ded",b:"",m:"",e:"60",r:"4",s:"60",y:"20"}]};
 try{Object.assign(P3,JSON.parse(localStorage.getItem("pen3")||"{}"))}catch(e){}
-if(P3.vv!=2){P3.view="n";P3.vv=2}
+if(P3.vv!=3){P3.view="r";P3.vv=3} // 기본 보기는 지금 돈 가치
 P3.by=PS.by; // 태어난 해는 국민연금 계산기와 한 값
 const saveP3=()=>{try{localStorage.setItem("pen3",JSON.stringify(P3))}catch(e){}};
 function p3Calc(){
@@ -1278,7 +1278,7 @@ function p3Calc(){
  const HIv=new Array(N).fill(0);if(S.hi=="local"||S.hi=="dep"){for(let a=ret;a<=life;a++){const h=hiCalc(L1[a-age]*12,OI(a),+S.hp||0,S.hi);HIv[a-age]=h.m;if(h.dep===false&&info.noDep==null&&S.hi=="dep")info.noDep=a}}
  return {age,ret,life,inf,L1,L2,L3,TX,HIv,m1,a1,info}}
 function p3Body(){
- const S=P3,C=p3Calc(),{age,ret,life,inf,TX}=C,net=S.tax!="0",[L1,L2,L3]=[C.L1,C.L2,C.L3].map((L,k)=>net?L.map((v,i)=>Math.max(0,v-TX[k][i])):L),hiOn=net&&C.HIv.some(v=>v>0),taxAt=a=>TX.reduce((x,T)=>x+T[a-age],0)+(net?C.HIv[a-age]:0),nomv=S.view=="n",fac=a=>nomv?Math.pow(1+inf,a-age):1,man=v=>Math.round(v/1e4).toLocaleString()+"만 원",need=(+S.need||0)*1e4,ND=a=>need?(S.ni=="1"?need*Math.pow(1+inf,a-age):need)/(nomv?1:Math.pow(1+inf,a-age)):0; // 생활비: 넣은 금액 그대로, '물가 반영'이면 해마다 물가만큼 늘림
+ const S=P3,C=p3Calc(),{age,ret,life,inf,TX}=C,net=S.tax!="0",[L1,L2,L3]=[C.L1,C.L2,C.L3].map((L,k)=>net?L.map((v,i)=>Math.max(0,v-TX[k][i])):L),hiOn=net&&C.HIv.some(v=>v>0),taxAt=a=>TX.reduce((x,T)=>x+T[a-age],0)+(net?C.HIv[a-age]:0),nomv=S.view=="n",fac=a=>nomv?Math.pow(1+inf,a-age):1,man=v=>Math.round(v/1e4).toLocaleString()+"만 원",need=(+S.need||0)*1e4,ND=a=>need?(S.ni=="1"?need*Math.pow(1+inf,a-age):need):0; // 생활비: 어느 보기에서든 넣은 금액 그대로, '물가 반영'을 누르면 해마다 물가만큼 늘림
  // 건강보험료는 어느 층에서 빼지 않는다(공단은 공적연금·재산에만 매김). 층은 세금만 뗀 값, 쓸 수 있는 돈(sum)에서 따로 뺀다
  const at=a=>{const i=a-age,k=fac(a);return [L1[i]*k,L2[i]*k,L3[i]*k]},gross=a=>at(a).reduce((x,y)=>x+y,0),hiA=a=>hiOn?C.HIv[a-age]*fac(a):0,sum=a=>Math.max(0,gross(a)-hiA(a)),ages=[];for(let a=ret;a<=life;a++)ages.push(a);
  const NM=[({nps:"국민연금",gov:"공무원·사학연금",gov2:"공무원·사학연금",mil:"군인연금",man:"공적연금"}[S.k1])+" (1층)","퇴직연금 (2층)","개인연금 (3층)"],COL=["#10283a","#b97935","#0a9e93"],ORD=[0,2,1]; // 색: 공적 먹, 퇴직 브론즈, 개인 청록(사이트 강조색 EMPH). 쌓는 순서는 입력 순서대로 공적 → 개인 → 퇴직
