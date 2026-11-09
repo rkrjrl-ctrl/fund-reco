@@ -175,7 +175,8 @@ table.lu td{padding:14px 10px;vertical-align:middle}
 .calc.wide .lcol .tog>input[type=text]{flex:0 0 150px;margin-top:23px}
 .calc.wide .lcol .tog>select{flex:0 1 auto;margin-top:23px}
 .calc.wide .fld:has(#pn_pmnote){max-width:300px}
-.npsum{margin-top:-2px}#p3nps{flex-basis:100%;font-size:15px}
+.npsum{margin:-6px 0 6px!important;align-items:center!important;gap:6px 14px!important}.form .npsum>a{margin-top:0!important;padding:5px 12px;font-size:14px}#p3nps{flex-basis:auto;font-size:15px}
+#pn_pmnote{display:block;margin-top:-2px;line-height:1.4;font-size:12.5px}
 .more{margin:-4px 0 12px}
 .more>summary{cursor:pointer;font-size:14px;color:var(--ink);font-weight:600;list-style:none;padding:4px 0}
 .more>summary::-webkit-details-marker{display:none}
@@ -1116,7 +1117,7 @@ const milAuto=S=>{if(S.sex!="m")return 0;const by=+S.by||1980,out=by+21;return b
 const milOf=S=>S.mil==null||S.mil===""||S.mil=="auto"?milAuto(S):Math.max(0,+S.mil||0);
 const pnInp=(k,w,ex,v)=>`<input type=number id="pn_${k}" value="${esc(v??PS[k]??"")}" style="width:${w}px;padding:4px;text-align:right" ${ex||""}>`;
 const pnSel=(k,o)=>`<select id="pn_${k}" style="padding:5px">${o.map(([v,t])=>`<option value="${v}" ${String(PS[k]??"")==String(v)?"selected":""}>${t}</option>`).join("")}</select>`;
-const pmNote=()=>{const a=pmAuto(PS),sy=penSY(PS),y0=(+PS.by||1980)+penA0(PS);if(y0>NOWY&&(PS.pm===""||PS.pm==null))return `${y0}년(${penA0(PS)}세)부터 낼 예정이라 아직 0개월`;return PS.pm===""||PS.pm==null||+PS.pm==a?`${sy}년부터 쉬지 않고 낸 것으로 자동 계산 · 쉰 적이 있으면 고치세요`:`자동 계산 ${a}개월과 다름 · <a data-pmreset=1>자동으로 되돌리기</a>`};
+const pmNote=()=>{const a=pmAuto(PS),sy=penSY(PS),y0=(+PS.by||1980)+penA0(PS);if(y0>NOWY&&(PS.pm===""||PS.pm==null))return `${y0}년(${penA0(PS)}세)부터 낼 예정이라 아직 0개월`;return PS.pm===""||PS.pm==null||+PS.pm==a?`${sy}년부터 쉬지 않고 낸 것으로 자동 계산`:`자동 계산 ${a}개월과 다름 · <a data-pmreset=1>자동으로 되돌리기</a>`};
 const milOpts=()=>{const a=milAuto(PS);return [["auto",PS.sex=="m"?(a?`자동 (${a}개월)`:"자동 (2008년 전 입대라 없음)"):"자동 (없음)"],[0,"없음 (면제·장교·부사관 등)"],...[6,7,8,9,10,11,12,15,18,20,21,24].map(m=>[m,m+"개월"])]};
 const savePen=()=>{try{localStorage.setItem("pen1",JSON.stringify(PS))}catch(e){}};
 // off: 받는 시기(−5~+5년), addM: 지금 소득으로 더 채우는 개월(추납·임의계속 효과 계산용)
