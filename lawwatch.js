@@ -9,9 +9,10 @@ const LAWS = ['국민연금법', '국민연금법 시행령', '공무원연금�
 const today = () => new Date(Date.now() + 9 * 3600e3).toISOString().slice(0, 10).replace(/-/g, '');
 const key = x => x.법령일련번호 + '@' + x.시행일자;
 async function rows(name, td) { // 시행 중인 본 + 아직 시행 전인 본
-  const r = await fetch('https://www.law.go.kr/DRF/lawSearch.do?OC=test&target=eflaw&type=JSON&display=100&nw=2,3&query=' + encodeURIComponent(name), { headers: { 'User-Agent': 'Mozilla/5.0' }, signal: AbortSignal.timeout(30000) });
+  const r = await fetch('https://www.law.go.kr/DRF/lawSearch.do?OC=' + encodeURIComponent(process.env.LAW_OC || 'test') + '&target=eflaw&type=JSON&display=100&nw=2,3&query=' + encodeURIComponent(name), { headers: { 'User-Agent': 'Mozilla/5.0', Referer: 'https://rkrjrl-ctrl.github.io/' }, signal: AbortSignal.timeout(30000) });
   if (!r.ok) throw new Error('HTTP ' + r.status);
-  const a = [].concat((await r.json()).LawSearch.law || []).filter(x => x.법령명한글 == name && (x.현행연혁코드 == '현행' || x.시행일자 > td));
+  const j = await r.json(); if (!j.LawSearch) throw new Error(j.result || 'LawSearch 없음');
+  const a = [].concat(j.LawSearch.law || []).filter(x => x.법령명한글 == name && (x.현행연혁코드 == '현행' || x.시행일자 > td));
   if (!a.some(x => x.현행연혁코드 == '현행')) throw new Error(name + ': 시행 중인 본을 찾지 못함');
   return a;
 }

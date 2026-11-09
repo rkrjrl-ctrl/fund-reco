@@ -22,6 +22,7 @@ jobs:
         env:
           OUT_DIR: docs
           OUT_NAME: index.html
+          LAW_OC: ${{ secrets.LAW_OC }}  # 법제처 OPEN API 키(도메인 rkrjrl-ctrl.github.io 등록)
       - run: |
           git config user.name github-actions
           git config user.email github-actions@users.noreply.github.com
