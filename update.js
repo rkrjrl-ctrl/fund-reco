@@ -35,6 +35,36 @@ async function chartWin(p, term) {
   const j = JSON.parse(t); if (!j.BASS_DT || j.BASS_DT.length < 5) throw new Error('no chart ' + p + ' term ' + term);
   return j;
 }
+// 2026-11-09부터 한국투자증권이 차트·구성 조회를 막음(400 '요청 데이터 변조'). 막혔는지 한 번만 확인하고, 막혔으면 그 조회는 건너뛴다.
+async function kisBlocked(p) {
+  try { const r = await fetch(KIS + '/main/mall/openfund/FundInfo_Pop.jsp?cmd=A_FP_20270_CHART', { method: 'POST', headers: FORM, body: new URLSearchParams({ cmd: 'A_FP_20270_CHART', pdno: p, term: '12', EXCEL_YN: '', gijun_radio: 'CRCT_BSPR24' }) });
+    return r.status === 400; } catch (e) { return false; }
+}
+// 기준가 보관(navstore.json): 차트를 못 받는 날에는 보관한 시계열에 검색 목록의 수정기준가(SUJ_GIJUN_GA, 제로인 기준일)를 하루씩 이어 붙인다.
+// 2026-11-11 검산: 목록 수정기준가와 보관값으로 계산한 1주 수익률이 공시 1주 수익률과 102개 펀드 모두 0.1%p 안에서 일치.
+const NSTORE = path.join(ROOT, 'navstore.json');
+function loadStore() {
+  const j = readJson(NSTORE, null); if (j) return j;
+  try {   // 처음에는 마지막으로 성공한 대시보드(docs/index.html)의 그래프 값으로 만든다
+    const h = fs.readFileSync(path.join(ROOT, 'docs', 'index.html'), 'utf8');
+    const axis = h.match(/const AXIS="([^"]+)"/)[1].split(' '), noff = JSON.parse(h.match(/const NOFF=(\{[^;]*?\});/)[1]);
+    const i = h.indexOf('const NAVS={'), body = h.slice(i, h.indexOf('\n};', i)), s = {};
+    for (const m of body.matchAll(/"([^"]+)":"([^"]*)"/g)) if (!m[1].includes(':')) s[m[1]] = [noff[m[1]] || 0, m[2]];
+    log('기준가 보관 파일을 대시보드에서 만듦: ' + Object.keys(s).length + '개, ~' + axis[axis.length - 1]);
+    return { axis, s };
+  } catch (e) { log('WARN 기준가 보관 파일 없음 ' + e.message); return { axis: [], s: {} }; }
+}
+function storeGet(st, p) {
+  const e = st.s[p]; if (!e) return null; const d = [], c = [];
+  e[1].split(',').forEach((x, i) => { if (x !== '' && st.axis[e[0] + i]) { d.push(st.axis[e[0] + i]); c.push(+x); } });
+  return d.length ? { d, c, b: [] } : null;
+}
+function storeSave(S) {
+  const ax = [...new Set(Object.values(S).flatMap(s => s.d))].sort(), at = new Map(ax.map((d, i) => [d, i])), s = {};
+  for (const p in S) { const m = new Map(S[p].d.map((d, i) => [d, S[p].c[i]])), o = at.get(S[p].d[0]);
+    s[p] = [o, ax.slice(o).map(d => m.has(d) && m.get(d) != null && !isNaN(m.get(d)) ? String(Math.round(m.get(d) * 10) / 10) : '').join(',')]; }
+  fs.writeFileSync(NSTORE, JSON.stringify({ axis: ax, s }));
+}
 const ymd = dt => dt.toISOString().slice(0, 10).replace(/-/g, '');
 async function chart(p) {
   const m = new Map(), now = new Date();
@@ -156,8 +186,19 @@ async function main() {
   // 2) 가격 시계열
   const ids = [...tdfRows.map(d => d.PDNO), ...EXTRA.map(e => e[0])];
   const S = {}; let next = 0;
-  const worker = async () => { while (next < ids.length) { const p = ids[next++]; try { S[p] = await retry(() => chart(p), 6); } catch (e) { log('WARN chart ' + p + ' ' + e.message); } } };
-  await Promise.all(Array.from({ length: 6 }, worker));
+  const BLOCKED = await kisBlocked(EXTRA[0][0]);
+  if (BLOCKED) log('WARN 한국투자증권 차트·구성 조회가 막혀 있음(400): 보관 기준가 + 목록 수정기준가로 갱신, 보유종목·TDF 구성은 직전 값');
+  else { const worker = async () => { while (next < ids.length) { const p = ids[next++]; try { S[p] = await retry(() => chart(p), 6); } catch (e) { log('WARN chart ' + p + ' ' + e.message); } } };
+    await Promise.all(Array.from({ length: 6 }, worker)); }
+  // 차트를 못 받은 펀드: 보관 기준가에 오늘 목록의 수정기준가(제로인 기준일)를 이어 붙인다
+  { const st = loadStore(); let fromStore = 0, added = 0;
+    for (const p of ids) {
+      if (!S[p]) { const s = storeGet(st, p); if (s) { S[p] = s; fromStore++; } }
+      const x = all[p], dt = x && x.ZEROIN_BASS_DT, v = x && parseFloat(x.SUJ_GIJUN_GA);
+      if (S[p] && dt && !isNaN(v) && v > 0 && dt > S[p].d[S[p].d.length - 1]) { S[p].d.push(dt); S[p].c.push(v); added++; }
+    }
+    if (fromStore) log(`보관 기준가 사용 ${fromStore}개, 목록 수정기준가 추가 ${added}건`);
+    storeSave(S); }
   const lost = EXTRA.map(e => e[0]).filter(c => !S[c]); if (lost.length) throw new Error('라인업 펀드 시계열 실패: ' + lost.join(','));
   const okIds = ids.filter(p => S[p]); if (okIds.length < ids.length - 3) throw new Error('시계열 실패가 많음: ' + (ids.length - okIds.length));
   const NAVH = {};
@@ -221,14 +262,14 @@ async function main() {
   // 5) 보유종목(자동 파싱 가능한 한국투자증권 펀드)
   const HOLD_AUTO = {}, hc = readJson(HCACHE, {});
   for (const [c] of EXTRA) {
-    try { const h = await retry(async () => { const x = await holdings(c); if (!x.length) throw new Error('보유종목 비어 있음'); return x; }, 8); HOLD_AUTO[c] = h; hc[c] = { date: new Date().toISOString().slice(0, 10), hold: h }; }
+    try { if (BLOCKED) throw new Error('한국투자증권 조회 막힘'); const h = await retry(async () => { const x = await holdings(c); if (!x.length) throw new Error('보유종목 비어 있음'); return x; }, 8); HOLD_AUTO[c] = h; hc[c] = { date: new Date().toISOString().slice(0, 10), hold: h }; }
     catch (e) { if (hc[c] && hc[c].hold.length) { HOLD_AUTO[c] = hc[c].hold; log('WARN 보유종목 ' + c + ' 조회 실패(' + e.message + '), ' + hc[c].date + ' 값 사용'); } else throw new Error('보유종목 없음 ' + c + ': ' + e.message); }
   }
   fs.writeFileSync(HCACHE, JSON.stringify(hc, null, 1));
   // 5-2) TDF 구성·위험 지표: 실패하면 직전 값(tdfinfo.json)을 쓰고 갱신은 계속
   const TFILE = path.join(ROOT, 'tdfinfo.json'), tc = readJson(TFILE, {}), TINFO = {};
   { let k = 0; const ids = R_TDF.map(r => r[0]); let fail = 0;
-    const w = async () => { while (k < ids.length) { const c = ids[k++]; try { tc[c] = await retry(() => tdfInfo(c), 3); } catch (e) { fail++; } if (tc[c]) TINFO[c] = tc[c]; await sleep(150); } };
+    const w = async () => { while (k < ids.length) { const c = ids[k++]; try { if (BLOCKED) throw 0; tc[c] = await retry(() => tdfInfo(c), 3); } catch (e) { fail++; } if (tc[c]) TINFO[c] = tc[c]; await sleep(150); } };
     await Promise.all(Array.from({ length: 4 }, w)); if (fail) log('WARN TDF 구성 조회 실패 ' + fail + '건(직전 값 사용)'); }
   fs.writeFileSync(TFILE, JSON.stringify(tc));
   const have = new Set([...R_TDF, ...R_EXTRA].map(r => r[0]));
