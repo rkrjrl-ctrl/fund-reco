@@ -173,11 +173,18 @@ async function main() {
   if (process.argv.includes('--if-stale')) { try { const l = JSON.parse(fs.readFileSync(path.join(ROOT, 'last-run.json'), 'utf8')); if (Date.now() - l.ts < 90 * 60e3) { log('90분 안에 갱신되어 건너뜀'); return; } } catch (e) {} }
   // 1) 목록
   const all = {};
-  const queries = [];
+  // 라인업 검색어를 맨 앞에 둔다: 목록 끝으로 갈수록 한국투자증권이 연결을 끊는 일이 잦아(fetch failed) 라인업 펀드가 빠져 갱신이 멈췄다(2026-10-01·10-30·11-11)
+  const queries = [...new Set(EXTRA.map(e => e[1]))];
   for (let y = 2020; y <= 2070; y += 5) for (const k of ['TDF' + y, 'TDF알아서' + y, 'TDF ' + y, '적격TDF' + y]) queries.push(k);
   queries.push('TDF', '적격TDF', 'TDF알아서', 'ETF포커스', '라이프사이클', '전략배분TDF', '한국형TDF');
-  [...new Set(EXTRA.map(e => e[1]))].forEach(k => queries.push(k));
-  for (const k of queries) { try { for (const d of await search(k)) all[d.PDNO] = d; } catch (e) { log('WARN search ' + k + ' ' + e.message); } }
+  let failedQ = [];
+  for (const k of queries) { try { for (const d of await search(k)) all[d.PDNO] = d; } catch (e) { failedQ.push(k); log('WARN search ' + k + ' ' + e.message); } }
+  // 실패한 검색어는 쉬었다가 두 번 더 시도한다
+  for (let pass = 1; pass <= 2 && failedQ.length; pass++) {
+    await sleep(60e3 * pass); const again = failedQ; failedQ = [];
+    for (const k of again) { try { for (const d of await search(k)) all[d.PDNO] = d; log('검색 재시도 성공 ' + k); } catch (e) { failedQ.push(k); } await sleep(2000); }
+    if (failedQ.length) log('WARN 검색 재시도 ' + pass + '회차 실패: ' + failedQ.join(','));
+  }
   const tdfRows = Object.values(all).filter(d => /TDF/i.test(d.PRDT_NAME) && /20[2-7][05]/.test(d.PRDT_NAME) && d.TAX_RDEM_KIND_CD == '36');
   if (tdfRows.length < 80) throw new Error('TDF 목록이 너무 적음: ' + tdfRows.length);
   const extraD = EXTRA.map(([c]) => all[c]); if (extraD.some(x => !x)) throw new Error('라인업 펀드 누락: ' + EXTRA.filter(([c]) => !all[c]).map(e => e[0]));
