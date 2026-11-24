@@ -1,5 +1,5 @@
 'use strict';
-// 펀드추천 대시보드 자동 갱신: 한국투자증권 펀드 조회(TDF 전 빈티지 + 라인업 펀드) + FunETF(2개 펀드) → HTML 생성 → 구글드라이브 동기화 폴더에 저장
+// 펀드추천 대시보드 자동 갱신: 한국투자증권 펀드 조회(TDF 전 빈티지 + 라인업 펀드) + 금융투자협회 공시(2개 펀드, 예전 FunETF) → HTML 생성 → 구글드라이브 동기화 폴더에 저장
 // 실행: node update.js   (Windows 작업 스케줄러가 매일 실행, 꺼져 있었으면 켜질 때 실행)
 const fs = require('fs'), path = require('path');
 const ROOT = __dirname;
@@ -16,7 +16,7 @@ const ITEMS = CFG.라인업.flatMap(f => f.종목);
 const EXTRA = ITEMS.filter(i => i.한투검색어).map(i => [i.코드, i.한투검색어]);   // 한투 검색으로 찾는 비TDF 펀드
 const FUNETF = ITEMS.filter(i => i.FunETF코드).map(i => ({ key: i.코드, fundCd: i.FunETF코드, term: String(i.기간), base: i.기준, co: i.운용사, fee: i.총보수, risk: i.위험등급, setup: i.설정일, aum: i.설정액억, name: i.정식명 }));
 const HCACHE = path.join(ROOT, 'holdings.json');   // 보유종목 마지막 성공값(조회 실패 시 대체)
-const HISTF = path.join(ROOT, 'history.json');   // 클래스 출시 이전 구간(FunETF 종류A 기준가) 캐시: 과거는 바뀌지 않으므로 한 번만 받음
+const HISTF = path.join(ROOT, 'history.json');   // 클래스 출시 이전 구간(FunETF 종류A 기준가, 새로 받을 땐 협회 공시) 캐시: 과거는 바뀌지 않으므로 한 번만 받음
 const loadMlCache = () => { const c = readJson(path.join(ROOT, 'metlife-cache.json'), null); if (!c) return null; return { eras: c._eras || [], comp: c._comp || {}, funds: Object.entries(c).filter(([k]) => k[0] !== '_').map(([code, e]) => ({ code, name: e.n, group: require('./metlife.js').group(e.n), flags: e.fl || [], d: e.d, v: e.v })) }; };
 const readJson = (f, d) => { try { return JSON.parse(fs.readFileSync(f, 'utf8')); } catch (e) { return d; } };
 
@@ -155,17 +155,28 @@ async function histNav(code, fundCd) {
   h[fundCd] = nav; fs.writeFileSync(HISTF, JSON.stringify(h)); log('과거이력 저장 ' + code + ' ' + fundCd + ' ' + nav[0][0] + '~');
   return nav;
 }
+// 분배금 반영 기준가(수정기준가) 시계열. 2026-11-24부터 FunETF가 GitHub 서버를 403으로 막아 금융투자협회 공시(dis.kofia.or.kr)로 바꿈.
+// 협회 기준가 조회의 tmpV3(전일대비)는 수정기준가의 하루 변화폭이라, 저장해 둔 마지막 수정기준가에 더해 이어 붙인다(2026-11-24 확인: 6개 펀드 FunETF 수정기준가와 0.05% 안쪽, 1개는 2017년 차이로 0.5%).
+// funetf-nav.json: FunETF에서 받아 둔 수정기준가(~2026-11-23) + 그 뒤 협회로 이은 값. 과거는 바뀌지 않으므로 마지막 날부터만 받는다.
+const FNAVF = path.join(ROOT, 'funetf-nav.json');
+async function kofiaStdPrc(fundCd, from, to) {
+  const body = `<?xml version="1.0" encoding="utf-8"?><message><proframeHeader><pfmAppName>FS-DIS2</pfmAppName><pfmSvcName>DISFundStdPrcStutSO</pfmSvcName><pfmFnName>select</pfmFnName></proframeHeader><systemHeader></systemHeader><DISCondFuncDTO><tmpV30>${from}</tmpV30><tmpV31>${to}</tmpV31><tmpV10>0</tmpV10><tmpV12>${fundCd}</tmpV12></DISCondFuncDTO></message>`;
+  const x = await retry(async () => { const r = await fetch('https://dis.kofia.or.kr/proframeWeb/XMLSERVICES/', { method: 'POST', headers: { ...UA, 'Content-Type': 'text/xml' }, body }); if (!r.ok) throw new Error('kofia ' + r.status); return r.text(); });
+  const rows = [...x.matchAll(/<tmpV1>(\d{8})<\/tmpV1>\s*<tmpV2>([-\d.]+)<\/tmpV2>\s*<tmpV3>([-\d.]+)<\/tmpV3>/g)].map(m => [m[1], +m[2], +m[3]]);
+  if (!rows.length) throw new Error('kofia empty ' + fundCd);
+  return rows.sort((a, b) => a[0].localeCompare(b[0]));
+}
 async function funetfNav(f) {
-  const page = `https://www.funetf.co.kr/product/fund/view/${f.fundCd}`;
-  const r = await retry(async () => { const x = await fetch(page, { headers: UA }); if (!x.ok) throw new Error('funetf page ' + x.status); return x; });
-  const html = await r.text();
-  const csrf = (html.match(/name="_csrf"[^>]*content="([^"]+)"/) || html.match(/content="([^"]+)"[^>]*name="_csrf"/) || [])[1];
-  if (!csrf) throw new Error('funetf csrf missing');
-  const cookie = (r.headers.getSetCookie ? r.headers.getSetCookie() : []).map(c => c.split(';')[0]).join('; ');
-  const p = new URLSearchParams({ gijunYmd: new Date().toISOString().slice(0, 10).replace(/-/g, ''), fundCd: f.fundCd, repFundCd: f.fundCd, mketDvsn: '02', usdYn: 'N', _csrf: csrf, schNavMode: 'T', schNavTerm: 'A' });
-  const t = await retry(async () => { const x = await fetch('https://www.funetf.co.kr/api/public/product/view/fundnav?' + p, { headers: { ...UA, Cookie: cookie, Referer: page } }); if (!x.ok) throw new Error('funetf nav ' + x.status); return x.text(); });
-  const j = JSON.parse(t); if (!Array.isArray(j) || !j.length) throw new Error('funetf empty ' + f.fundCd);
-  return j.map(x => [x.gijunYmd, x.ugijunGa]).sort((a, b) => a[0].localeCompare(b[0]));
+  const all = readJson(FNAVF, {}), old = all[f.fundCd] || [];
+  const today = new Date(Date.now() + 9 * 3600e3).toISOString().slice(0, 10).replace(/-/g, '');
+  const last = old.length ? old[old.length - 1] : null;
+  const rows = await kofiaStdPrc(f.fundCd, last ? last[0] : '19900101', today);
+  const out = old.slice(); let u;
+  if (last) { u = last[1]; const a = rows.find(r => r[0] === last[0]); if (!a) throw new Error('kofia 기준일 없음 ' + f.fundCd + ' ' + last[0]); }
+  else { u = rows[0][1]; out.push([rows[0][0], u]); }
+  for (const [d, , dv] of rows) { if (d <= out[out.length - 1][0]) continue; u = Math.round((u + dv) * 1e6) / 1e6; if (!(u > 0)) throw new Error('kofia 이상값 ' + f.fundCd + ' ' + d); out.push([d, u]); }
+  if (out.length > old.length) { all[f.fundCd] = out; fs.writeFileSync(FNAVF, JSON.stringify(all)); }
+  return out;
 }
 
 async function main() {
